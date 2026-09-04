@@ -1,0 +1,1840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fretwise</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a1517;
+    --bg-grain-a: #0d1b1e;
+    --bg-grain-b: #071011;
+    --panel: #102529;
+    --panel-2: #163136;
+    --panel-border: rgba(196, 232, 224, 0.10);
+    --panel-border-strong: rgba(196, 232, 224, 0.18);
+    --wood: #123a41;
+    --wood-hi: #17454d;
+    --wood-lo: #0c2a2f;
+    --fret-metal: #cfe0dc;
+    --fret-metal-dim: #77a099;
+    --string-metal: #d6e6e1;
+    --inlay: #d9f0ea;
+    --text: #eafaf5;
+    --text-dim: #9bc7bd;
+    --text-faint: #588a82;
+    --accent: #2fc9b4;
+    --accent-dim: #17685c;
+    --accent-glow: rgba(47, 201, 180, 0.35);
+    --on-accent: #052321;
+    --good: #82e08d;
+    --good-glow: rgba(130, 224, 141, 0.4);
+    --bad: #ff6f5e;
+    --bad-glow: rgba(255, 111, 94, 0.4);
+    --font-display: 'Space Mono', 'JetBrains Mono', ui-monospace, monospace;
+    --font-body: 'Manrope', -apple-system, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      repeating-linear-gradient(115deg, var(--bg-grain-a) 0px, var(--bg-grain-a) 2px, var(--bg-grain-b) 2px, var(--bg-grain-b) 4px),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    padding: clamp(16px, 4vw, 40px);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  /* ---------- Header ---------- */
+
+  header.top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: clamp(20px, 3vw, 32px);
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .brand h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(22px, 3.4vw, 30px);
+    letter-spacing: 0.01em;
+    margin: 0;
+    color: var(--text);
+  }
+
+  .brand .badge {
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border: 1px solid var(--accent-dim);
+    background: rgba(232, 163, 61, 0.08);
+    padding: 3px 8px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+
+  .top p.tagline {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 14px;
+    max-width: 46ch;
+  }
+
+  /* ---------- Layout ---------- */
+
+  .rack {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 18px;
+  }
+
+  @media (max-width: 800px) {
+    .rack { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 30px -18px rgba(0,0,0,0.7);
+    padding: 18px;
+  }
+
+  .panel + .panel { margin-top: 18px; }
+
+  .panel h2 {
+    font-family: var(--font-display);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin: 0 0 14px;
+  }
+
+  /* ---------- Readout (LCD-style) ---------- */
+
+  .readout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: center;
+    text-align: center;
+    padding: 22px 18px 20px;
+    border-radius: 12px;
+    background: radial-gradient(120% 160% at 50% -20%, rgba(232,163,61,0.08), transparent 60%), var(--panel);
+    border: 1px solid var(--panel-border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .readout-instruction {
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .readout-instruction b { color: var(--bad); font-weight: 800; font-size: 1.65em; letter-spacing: 0; }
+
+  .readout-note {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(52px, 11vw, 84px);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    text-shadow: 0 0 30px var(--accent-glow);
+    transition: color 160ms ease, text-shadow 160ms ease;
+  }
+
+  .readout-note.state-good {
+    color: var(--good);
+    text-shadow: 0 0 34px var(--good-glow);
+  }
+
+  .readout-note.state-bad {
+    color: var(--bad);
+    text-shadow: 0 0 34px var(--bad-glow);
+  }
+
+  .readout-sub {
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: var(--text-faint);
+    min-height: 16px;
+  }
+
+  .status-light {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-faint);
+    box-shadow: 0 0 0 rgba(0,0,0,0);
+  }
+
+  .status-light.listening {
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
+  /* ---------- Tuner meter ---------- */
+
+  .meter-wrap {
+    width: 100%;
+    max-width: 320px;
+    margin-top: 4px;
+  }
+
+  .meter-track {
+    position: relative;
+    height: 8px;
+    border-radius: 5px;
+    background: var(--wood-lo);
+    border: 1px solid var(--panel-border-strong);
+    overflow: hidden;
+  }
+
+  .meter-track::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--fret-metal-dim);
+    transform: translateX(-1px);
+  }
+
+  .meter-needle {
+    position: absolute;
+    top: -3px;
+    width: 4px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+    left: 50%;
+    transform: translateX(-2px);
+    transition: left 70ms linear, background 120ms ease;
+  }
+
+  .meter-needle.good { background: var(--good); box-shadow: 0 0 10px var(--good-glow); }
+
+  .meter-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-display);
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .meter-freq {
+    font-family: var(--font-display);
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    min-height: 15px;
+  }
+
+  /* ---------- Tuner string tiles ---------- */
+
+  .tuner-strings {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    width: 100%;
+    margin-top: 6px;
+  }
+
+  @media (max-width: 560px) {
+    .tuner-strings { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  .tuner-tile {
+    background: var(--wood-lo);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 8px;
+    padding: 9px 4px 8px;
+    text-align: center;
+    transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  }
+
+  .tuner-tile .tt-label {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+  }
+
+  .tuner-tile .tt-freq {
+    font-family: var(--font-display);
+    font-size: 9.5px;
+    color: var(--text-faint);
+    margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tuner-tile .tt-state {
+    font-size: 10px;
+    margin-top: 4px;
+    color: var(--text-faint);
+    min-height: 12px;
+  }
+
+  .tuner-tile.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+  }
+
+  .tuner-tile.active .tt-state { color: var(--accent); }
+
+  .tuner-tile.intune {
+    border-color: var(--good);
+    background: rgba(116, 200, 110, 0.12);
+    box-shadow: 0 0 0 1px var(--good) inset, 0 0 12px var(--good-glow);
+  }
+
+  .tuner-tile.intune .tt-label,
+  .tuner-tile.intune .tt-state { color: var(--good); }
+
+  /* ---------- Note picker (Find mode) ---------- */
+
+  .note-picker {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .note-pick-btn {
+    background: var(--wood-lo);
+    border: 1px solid var(--panel-border-strong);
+    border-bottom: 3px solid var(--note-color, var(--panel-border-strong));
+    border-radius: 7px;
+    padding: 8px 2px 7px;
+    text-align: center;
+    color: var(--text-dim);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  .note-pick-btn.active {
+    background: var(--note-color);
+    color: var(--note-text);
+    border-color: var(--note-color);
+  }
+
+  /* ---------- Find-mode occurrence list ---------- */
+
+  .find-list {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .find-list-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    background: var(--wood-lo);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 7px;
+    padding: 8px 12px;
+    font-size: 12.5px;
+  }
+
+  .find-list-item .fli-string {
+    flex: 0 0 auto;
+    min-width: 6.5em;
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .find-list-item .fli-occurrences {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .fli-occ {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--font-display);
+  }
+
+  .fli-occ .fret {
+    color: var(--text-dim);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fli-occ .note {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  /* ---------- Find-mode legend (per selected note) ---------- */
+
+  .find-legend-swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .find-legend-swatch .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .fli-none {
+    color: var(--text-faint);
+    font-size: 12px;
+    font-style: italic;
+  }
+
+  /* ---------- Fretboard ---------- */
+
+  .fretboard-wrap {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .fretboard-frame {
+    background: var(--wood);
+    border-radius: 8px;
+    padding: 14px 14px 10px;
+    min-width: 560px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35), inset 0 30px 40px -30px rgba(0,0,0,0.5);
+  }
+
+  svg.fretboard { display: block; width: 100%; height: auto; }
+
+  .fret-cell { cursor: pointer; }
+  .fret-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .legend-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.02em;
+  }
+
+  .legend-row span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* ---------- Controls ---------- */
+
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+
+  .field label.field-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .segmented {
+    display: flex;
+    background: var(--wood-lo);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .segmented button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 8px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+  }
+
+  .segmented button.active {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  #modeSwitch {
+    flex-wrap: wrap;
+  }
+
+  #modeSwitch button {
+    flex: 1 1 45%;
+  }
+
+  select.select-input {
+    width: 100%;
+    background: var(--wood-lo);
+    color: var(--text);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 8px;
+    padding: 9px 10px;
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+
+  .range-value {
+    font-family: var(--font-display);
+    font-size: 13px;
+    color: var(--accent);
+    min-width: 3.2em;
+    text-align: right;
+  }
+
+  .string-toggles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .string-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 4px;
+    border-radius: 7px;
+    border: 1px solid var(--panel-border-strong);
+    background: var(--wood-lo);
+    color: var(--text-dim);
+    font-family: var(--font-display);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  .string-toggle input { display: none; }
+
+  .string-toggle.on {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 9px;
+    border: 1px solid var(--panel-border-strong);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-family: var(--font-body);
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    transition: filter 120ms ease, transform 120ms ease;
+  }
+
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: translateY(1px); }
+
+  .btn.secondary {
+    background: var(--wood-lo);
+    color: var(--text);
+  }
+
+  .btn.stop {
+    background: var(--bad);
+    color: var(--on-accent);
+  }
+
+  .mic-error {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--bad);
+    line-height: 1.5;
+    display: none;
+  }
+
+  .mic-error.show { display: block; }
+
+  /* ---------- Stats ---------- */
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .stat {
+    background: var(--wood-lo);
+    border: 1px solid var(--panel-border-strong);
+    border-radius: 9px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+
+  .stat .num {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat .lbl {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-top: 3px;
+  }
+
+  .help-note {
+    font-size: 12px;
+    color: var(--text-faint);
+    line-height: 1.6;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--panel-border);
+  }
+
+  .help-note strong { color: var(--text-dim); }
+
+  footer.foot {
+    margin-top: 22px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.03em;
+  }
+</style>
+</head>
+<body>
+
+
+<div class="page">
+  <header class="top">
+    <div class="brand">
+      <h1>Fretwise</h1>
+      <span class="badge">Ear &amp; eye trainer</span>
+    </div>
+    <p class="tagline">Learn exactly where every note lives on the neck — by playing it on the right string, or by pointing at it.</p>
+  </header>
+
+  <div class="rack">
+    <div class="col-main">
+      <div class="panel readout-panel">
+        <div class="readout">
+          <div class="status-light" id="statusLight"></div>
+          <div class="readout-instruction" id="instruction">Press start to begin</div>
+          <div class="readout-note" id="targetNote">&mdash;</div>
+          <div class="readout-sub" id="targetSub">&nbsp;</div>
+
+          <div class="meter-wrap" id="meterWrap" style="display:none;">
+            <div class="meter-track">
+              <div class="meter-needle" id="meterNeedle"></div>
+            </div>
+            <div class="meter-labels"><span>&minus;50¢</span><span>in tune</span><span>+50¢</span></div>
+            <div class="meter-freq" id="meterFreq">&nbsp;</div>
+          </div>
+
+          <div class="tuner-strings" id="tunerStrings" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:18px;">
+        <h2>Fretboard</h2>
+        <div class="fretboard-wrap">
+          <div class="fretboard-frame">
+            <svg class="fretboard" id="fretboardSvg" viewBox="0 0 900 220" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+        <div class="legend-row" id="legendRow">
+          <span><span class="swatch" style="background:var(--bad);"></span> target string</span>
+          <span><span class="swatch" style="background:var(--good);"></span> correct</span>
+          <span><span class="swatch" style="background:var(--bad);"></span> wrong tap</span>
+        </div>
+        <div class="find-list" id="findList" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="col-side">
+      <div class="panel">
+        <h2>Mode</h2>
+        <div class="field">
+          <div class="segmented" id="modeSwitch">
+            <button type="button" data-mode="mic" class="active">Play it</button>
+            <button type="button" data-mode="tap">Tap it</button>
+            <button type="button" data-mode="tune">Tune</button>
+            <button type="button" data-mode="find">Find</button>
+          </div>
+        </div>
+        <div class="field" id="micStartField">
+          <button class="btn" id="micToggleBtn">Start listening</button>
+          <div class="mic-error" id="micError"></div>
+        </div>
+        <div class="field" id="findControls" style="display:none;">
+          <label class="field-label">Pick notes to find</label>
+          <div class="note-picker" id="notePicker"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Settings</h2>
+        <div class="field">
+          <label class="field-label" for="tuningSelect">Tuning</label>
+          <select class="select-input" id="tuningSelect">
+            <option value="standard">Standard (E A D G B e)</option>
+            <option value="dropd">Drop D (D A D G B e)</option>
+            <option value="halfstep">Half-step down (E&#9837; A&#9837; D&#9837; G&#9837; B&#9837; e&#9837;)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="fretRange">Fret range: 0&ndash;<span id="fretRangeVal">12</span></label>
+          <div class="range-row">
+            <input type="range" id="fretRange" min="3" max="15" value="12" step="1">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="markerToggle">Fret markers</label>
+          <div class="segmented" id="markerSwitch">
+            <button type="button" data-markers="on" class="active">On</button>
+            <button type="button" data-markers="off">Off</button>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Strings in play</label>
+          <div class="string-toggles" id="stringToggles"></div>
+        </div>
+        <div class="field">
+          <label class="field-label">Notes</label>
+          <div class="segmented" id="noteFilterSwitch">
+            <button type="button" data-filter="chromatic" class="active">Chromatic</button>
+            <button type="button" data-filter="naturals">Naturals only</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Session</h2>
+        <div class="stats-row">
+          <div class="stat"><div class="num" id="statCorrect">0</div><div class="lbl">Correct</div></div>
+          <div class="stat"><div class="num" id="statStreak">0</div><div class="lbl">Streak</div></div>
+          <div class="stat"><div class="num" id="statAccuracy">&mdash;</div><div class="lbl">Accuracy</div></div>
+        </div>
+        <div class="help-note" id="helpNote">
+          <strong>Play it</strong>: the readout names a note and highlights a string — find that note on that string and play it. Fretwise listens through your mic and checks pitch <em>and</em> octave, so it only accepts the note in that string's range. It can't tell which physical string you plucked, so an identical pitch on a neighbouring string will also register — that's the one gap in mic mode.
+          <br><br>
+          <strong>Tune</strong>: pluck each open string and Fretwise matches it to the nearest string in your chosen tuning, showing how sharp or flat it is so you can bring the guitar to pitch before practising.
+          <br><br>
+          <strong>Find</strong>: pick one or more notes to see every place they sound within the current fret range, on all six strings, each marked with its exact pitch (e.g. D3) in that note's own colour. This mode ignores the strings-in-play filter, since the point is to see the whole neck.
+          <br><br>
+          <strong>Notes</strong> (in Settings): Chromatic includes sharps/flats everywhere in the app; Naturals only restricts both the practice target in Play it/Tap it and the note picker in Find to C D E F G A B.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot">All pitch detection runs locally in your browser. No audio is recorded or uploaded.</footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------- Note / frequency utilities (validated against known guitar frequencies) ---------------- */
+
+  var NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  var NATURAL_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+  // One fixed, distinct colour per pitch class (Find mode), so a note keeps the
+  // same colour no matter what else is selected alongside it. Spaced around the
+  // OKLCH hue wheel and checked with the dataviz skill's palette validator
+  // against this app's fretboard-board surface (#123a41): CVD separation clears
+  // the accepted floor for every adjacent pair; every dot also carries its note
+  // name as a direct label, which is the documented fallback for the one pair
+  // (F#/G) that lands just under the strictest full-colour-vision threshold.
+  var NOTE_COLORS = {
+    'C':  { hex: '#ae4058', text: '#eafaf5' },
+    'C#': { hex: '#d66e3c', text: '#052321' },
+    'D':  { hex: '#8c6500', text: '#eafaf5' },
+    'D#': { hex: '#819c23', text: '#052321' },
+    'E':  { hex: '#03823a', text: '#eafaf5' },
+    'F':  { hex: '#00ab8a', text: '#052321' },
+    'F#': { hex: '#007c96', text: '#eafaf5' },
+    'G':  { hex: '#2098df', text: '#052321' },
+    'G#': { hex: '#4865bf', text: '#eafaf5' },
+    'A':  { hex: '#927cdf', text: '#052321' },
+    'A#': { hex: '#8c4da3', text: '#eafaf5' },
+    'B':  { hex: '#c868ab', text: '#052321' }
+  };
+
+  function freqFromMidi(midi) {
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  function nameFromMidi(midi) {
+    var name = NOTE_NAMES_SHARP[((midi % 12) + 12) % 12];
+    var octave = Math.floor(midi / 12) - 1;
+    return { name: name, octave: octave, label: name + octave };
+  }
+
+  var TUNINGS = {
+    standard: { midi: [40, 45, 50, 55, 59, 64], labels: ['Low E', 'A', 'D', 'G', 'B', 'High e'] },
+    dropd:    { midi: [38, 45, 50, 55, 59, 64], labels: ['Low D', 'A', 'D', 'G', 'B', 'High e'] },
+    halfstep: { midi: [39, 44, 49, 54, 58, 63], labels: ['Low E♭', 'A♭', 'D♭', 'G♭', 'B♭', 'High e♭'] }
+  };
+
+  function midiForPosition(tuning, stringIndex, fret) {
+    return tuning.midi[stringIndex] + fret;
+  }
+
+  /* ---------------- Pitch detection (autocorrelation, ACF2+ style) ---------------- */
+  /* Validated in isolation against synthetic sine waves across 82Hz-660Hz: all detections within 3 cents. */
+
+  function autoCorrelate(buf, sampleRate) {
+    var SIZE = buf.length;
+    var rms = 0;
+    for (var i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / SIZE);
+    if (rms < 0.012) return -1;
+
+    var r1 = 0, r2 = SIZE - 1;
+    var thres = 0.2;
+    for (i = 0; i < SIZE / 2; i++) { if (Math.abs(buf[i]) < thres) { r1 = i; break; } }
+    for (i = 1; i < SIZE / 2; i++) { if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; } }
+    var trimmed = buf.slice(r1, r2);
+    var n = trimmed.length;
+    if (n < 8) return -1;
+
+    var c = new Array(n).fill(0);
+    for (var lag = 0; lag < n; lag++) {
+      var sum = 0;
+      for (var j = 0; j < n - lag; j++) sum += trimmed[j] * trimmed[j + lag];
+      c[lag] = sum;
+    }
+
+    var d = 0;
+    while (d < n - 1 && c[d] > c[d + 1]) d++;
+
+    var maxVal = -1, maxPos = -1;
+    for (i = d; i < n; i++) { if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; } }
+    var T0 = maxPos;
+
+    if (T0 > 0 && T0 < n - 1) {
+      var x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+      var a = (x1 + x3 - 2 * x2) / 2;
+      var b = (x3 - x1) / 2;
+      if (a !== 0) T0 = T0 - b / (2 * a);
+    }
+    if (T0 <= 0) return -1;
+    return sampleRate / T0;
+  }
+
+  function centsOff(freq, targetFreq) {
+    return 1200 * Math.log2(freq / targetFreq);
+  }
+
+  /* ---------------- Persisted settings (per-viewer convenience only) ---------------- */
+
+  var STORE_KEY = 'fretwise.settings.v1';
+  function loadSettings() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+  function saveSettings() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        tuning: state.tuningKey,
+        maxFret: state.maxFret,
+        strings: state.enabledStrings,
+        showFretMarkers: state.showFretMarkers,
+        findNotes: Object.keys(state.findNotes),
+        noteFilterMode: state.noteFilterMode,
+        mode: state.mode
+      }));
+    } catch (e) { /* ignore */ }
+  }
+
+  /* ---------------- State ---------------- */
+
+  var state = {
+    tuningKey: 'standard',
+    maxFret: 12,
+    enabledStrings: [true, true, true, true, true, true],
+    showFretMarkers: true,
+    tunedConfirmed: [false, false, false, false, false, false],
+    findNotes: {}, // note name -> true, e.g. { C: true, 'D#': true }
+    noteFilterMode: 'chromatic', // 'chromatic' | 'naturals'
+    mode: 'mic', // 'mic' | 'tap' | 'tune' | 'find'
+    listening: false,
+    target: null, // { stringIndex, fret, midi }
+    correct: 0,
+    attempts: 0,
+    streak: 0,
+    matchStreakFrames: 0,
+    revealTimer: null,
+    flashTimer: null,
+    audioCtx: null,
+    analyser: null,
+    mediaStream: null,
+    rafId: null
+  };
+
+  var saved = loadSettings();
+  if (saved) {
+    if (TUNINGS[saved.tuning]) state.tuningKey = saved.tuning;
+    if (saved.maxFret >= 3 && saved.maxFret <= 15) state.maxFret = saved.maxFret;
+    if (Array.isArray(saved.strings) && saved.strings.length === 6) state.enabledStrings = saved.strings;
+    if (typeof saved.showFretMarkers === 'boolean') state.showFretMarkers = saved.showFretMarkers;
+    if (Array.isArray(saved.findNotes)) {
+      saved.findNotes.forEach(function (n) {
+        if (NOTE_NAMES_SHARP.indexOf(n) !== -1) state.findNotes[n] = true;
+      });
+    }
+    if (saved.noteFilterMode === 'chromatic' || saved.noteFilterMode === 'naturals') state.noteFilterMode = saved.noteFilterMode;
+    if (saved.mode === 'mic' || saved.mode === 'tap' || saved.mode === 'tune' || saved.mode === 'find') state.mode = saved.mode;
+  }
+  if (state.noteFilterMode === 'naturals') {
+    NOTE_NAMES_SHARP.forEach(function (n) {
+      if (n.indexOf('#') !== -1) delete state.findNotes[n];
+    });
+  }
+
+  function tuning() { return TUNINGS[state.tuningKey]; }
+
+  /* ---------------- DOM refs ---------------- */
+
+  var el = {
+    instruction: document.getElementById('instruction'),
+    targetNote: document.getElementById('targetNote'),
+    targetSub: document.getElementById('targetSub'),
+    statusLight: document.getElementById('statusLight'),
+    meterWrap: document.getElementById('meterWrap'),
+    meterNeedle: document.getElementById('meterNeedle'),
+    meterFreq: document.getElementById('meterFreq'),
+    fretboardSvg: document.getElementById('fretboardSvg'),
+    modeSwitch: document.getElementById('modeSwitch'),
+    micStartField: document.getElementById('micStartField'),
+    micToggleBtn: document.getElementById('micToggleBtn'),
+    micError: document.getElementById('micError'),
+    tuningSelect: document.getElementById('tuningSelect'),
+    fretRange: document.getElementById('fretRange'),
+    fretRangeVal: document.getElementById('fretRangeVal'),
+    markerSwitch: document.getElementById('markerSwitch'),
+    tunerStrings: document.getElementById('tunerStrings'),
+    findControls: document.getElementById('findControls'),
+    notePicker: document.getElementById('notePicker'),
+    noteFilterSwitch: document.getElementById('noteFilterSwitch'),
+    findList: document.getElementById('findList'),
+    legendRow: document.getElementById('legendRow'),
+    stringToggles: document.getElementById('stringToggles'),
+    statCorrect: document.getElementById('statCorrect'),
+    statStreak: document.getElementById('statStreak'),
+    statAccuracy: document.getElementById('statAccuracy'),
+    helpNote: document.getElementById('helpNote')
+  };
+
+  /* ---------------- Fretboard rendering ---------------- */
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var FB = { left: 68, right: 40, top: 32, bottom: 42 };
+
+  function svgEl(tag, attrs) {
+    var e = document.createElementNS(SVG_NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  var fretCells = []; // for tap mode: {stringIndex, fret, rect}
+  var stringLineEls = [];
+  var stringLabelEls = [];
+  var stringThickness = [];
+  var fretPositionMarkers = {}; // key "s-f" -> group el (dot/ring) created on demand
+
+  function buildFretboard() {
+    var svg = el.fretboardSvg;
+    svg.innerHTML = '';
+    fretCells = [];
+    stringLineEls = [];
+    stringLabelEls = [];
+    stringThickness = [];
+    fretPositionMarkers = {};
+
+    var strings = tuning().labels;
+    var nStrings = 6;
+    var nFrets = state.maxFret;
+    var width = 900;
+    var height = 220 + (nFrets > 12 ? 24 : 0);
+    svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+
+    var innerW = width - FB.left - FB.right;
+    var innerH = height - FB.top - FB.bottom;
+    var fretW = innerW / nFrets;
+    var stringGap = innerH / (nStrings - 1);
+
+    // Fret position inlays (single dots at 3,5,7,9,15,17..., double at 12) — toggleable, since
+    // some instruments (e.g. classical guitars) have a bare fretboard with no inlays at all.
+    if (state.showFretMarkers) {
+      var singleDots = [3, 5, 7, 9, 15, 17, 19, 21];
+      var doubleDots = [12, 24];
+      for (var f = 1; f <= nFrets; f++) {
+        var cx = FB.left + fretW * (f - 0.5);
+        if (doubleDots.indexOf(f) !== -1) {
+          svg.appendChild(svgEl('circle', { cx: cx, cy: FB.top + innerH * 0.28, r: 6, fill: 'var(--inlay)', opacity: 0.55 }));
+          svg.appendChild(svgEl('circle', { cx: cx, cy: FB.top + innerH * 0.72, r: 6, fill: 'var(--inlay)', opacity: 0.55 }));
+        } else if (singleDots.indexOf(f) !== -1) {
+          svg.appendChild(svgEl('circle', { cx: cx, cy: FB.top + innerH / 2, r: 6.5, fill: 'var(--inlay)', opacity: 0.55 }));
+        }
+      }
+    }
+
+    // Frets (vertical lines), nut thicker at 0
+    for (var fr = 0; fr <= nFrets; fr++) {
+      var x = FB.left + fretW * fr;
+      svg.appendChild(svgEl('line', {
+        x1: x, y1: FB.top - 6, x2: x, y2: FB.top + innerH + 6,
+        stroke: fr === 0 ? 'var(--fret-metal)' : 'var(--fret-metal-dim)',
+        'stroke-width': fr === 0 ? 5 : 2,
+        'stroke-linecap': 'round'
+      }));
+    }
+
+    // Fret number labels
+    for (var fn = 0; fn <= nFrets; fn++) {
+      if (fn !== 0 && fn % 1 !== 0) continue;
+      var lx = FB.left + fretW * (fn === 0 ? 0 : fn - 0.5);
+      var txt = svgEl('text', {
+        x: fn === 0 ? FB.left : lx, y: height - 12,
+        'text-anchor': 'middle', 'font-family': 'var(--font-display)',
+        'font-size': '11', fill: 'var(--text-faint)'
+      });
+      txt.textContent = fn;
+      svg.appendChild(txt);
+    }
+
+    // Strings (horizontal lines) — high e at top, low E at bottom; thickness scales down index->thinner
+    for (var s = 0; s < nStrings; s++) {
+      var y = FB.top + stringGap * s;
+      var thickness = 1.4 + (nStrings - 1 - s) * 0.55; // low E thickest (s=5 bottom is thickest visually since we invert)
+      // s=0 is top row = High e (thin); s=5 bottom row = Low E (thick)
+      var displayThickness = 1.3 + s * 0.5;
+      var line = svgEl('line', {
+        x1: FB.left, y1: y, x2: FB.left + innerW, y2: y,
+        stroke: 'var(--string-metal)', 'stroke-width': displayThickness, opacity: 0.85
+      });
+      svg.appendChild(line);
+      stringLineEls[s] = line;
+      stringThickness[s] = displayThickness;
+
+      // label: row 0 = high e = tuning index 5; row 5 = low = tuning index 0
+      var tuningIndex = nStrings - 1 - s;
+      var label = svgEl('text', {
+        x: FB.left - 10, y: y + 4, 'text-anchor': 'end',
+        'font-family': 'var(--font-display)', 'font-size': '12', 'font-weight': '400', fill: 'var(--text-dim)'
+      });
+      label.textContent = strings[tuningIndex];
+      svg.appendChild(label);
+      stringLabelEls[s] = label;
+    }
+
+    // Clickable cells for tap mode (row per string, columns per fret 0..nFrets)
+    for (var row = 0; row < nStrings; row++) {
+      var stringIndex = nStrings - 1 - row; // tuning index
+      var yRow = FB.top + stringGap * row;
+      for (var col = 0; col <= nFrets; col++) {
+        var xCenter = FB.left + (col === 0 ? 0 : fretW * (col - 0.5));
+        var cellW = col === 0 ? fretW * 0.6 : fretW;
+        var rect = svgEl('rect', {
+          x: xCenter - cellW / 2, y: yRow - stringGap / 2,
+          width: cellW, height: stringGap,
+          fill: 'transparent', class: 'fret-cell',
+          tabindex: '0', role: 'button',
+          'aria-label': strings[stringIndex] + ' string, fret ' + col
+        });
+        rect.addEventListener('click', (function (sIdx, fret) {
+          return function () { handleTapAnswer(sIdx, fret); };
+        })(stringIndex, col));
+        rect.addEventListener('keydown', (function (sIdx, fret) {
+          return function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); handleTapAnswer(sIdx, fret); } };
+        })(stringIndex, col));
+        svg.appendChild(rect);
+        fretCells.push({ stringIndex: stringIndex, fret: col, rect: rect, cx: xCenter, cy: yRow });
+      }
+    }
+  }
+
+  function highlightTargetString(stringIndex) {
+    var nStrings = 6;
+    stringLineEls.forEach(function (line, row) {
+      var tIndex = nStrings - 1 - row;
+      var baseWidth = stringThickness[row] || 1.5;
+      if (tIndex === stringIndex) {
+        line.setAttribute('stroke', 'var(--bad)');
+        line.setAttribute('stroke-width', baseWidth + 1.8);
+        line.setAttribute('opacity', '1');
+      } else {
+        line.setAttribute('stroke', 'var(--string-metal)');
+        line.setAttribute('stroke-width', baseWidth);
+        line.setAttribute('opacity', '0.85');
+      }
+    });
+    stringLabelEls.forEach(function (label, row) {
+      var tIndex = nStrings - 1 - row;
+      if (tIndex === stringIndex) {
+        label.setAttribute('fill', 'var(--bad)');
+        label.setAttribute('font-weight', '700');
+        label.setAttribute('font-size', '13.5');
+      } else {
+        label.setAttribute('fill', 'var(--text-dim)');
+        label.setAttribute('font-weight', '400');
+        label.setAttribute('font-size', '12');
+      }
+    });
+  }
+
+  function clearFretMarkers() {
+    Object.keys(fretPositionMarkers).forEach(function (k) {
+      var node = fretPositionMarkers[k];
+      if (node && node.parentNode) node.parentNode.removeChild(node);
+    });
+    fretPositionMarkers = {};
+  }
+
+  function markPosition(stringIndex, fret, kind) {
+    var cell = fretCells.find(function (c) { return c.stringIndex === stringIndex && c.fret === fret; });
+    if (!cell) return;
+    var key = stringIndex + '-' + fret + '-' + kind;
+    if (fretPositionMarkers[key]) return;
+    var color = kind === 'good' ? 'var(--good)' : kind === 'bad' ? 'var(--bad)' : 'var(--accent)';
+    var ring = svgEl('circle', {
+      cx: cell.cx, cy: cell.cy, r: 13, fill: 'none',
+      stroke: color, 'stroke-width': 3, opacity: 0.95
+    });
+    el.fretboardSvg.appendChild(ring);
+    fretPositionMarkers[key] = ring;
+  }
+
+  /* ---------------- Game logic ---------------- */
+
+  function enabledStringIndices() {
+    var out = [];
+    state.enabledStrings.forEach(function (on, i) { if (on) out.push(i); });
+    return out;
+  }
+
+  function pickTarget() {
+    var strings = enabledStringIndices();
+    if (strings.length === 0) strings = [0, 1, 2, 3, 4, 5];
+    var t = tuning();
+    var naturalsOnly = state.noteFilterMode === 'naturals';
+
+    var candidates = [];
+    strings.forEach(function (s) {
+      for (var f = 0; f <= state.maxFret; f++) {
+        if (naturalsOnly) {
+          var midi = midiForPosition(t, s, f);
+          if (nameFromMidi(midi).name.indexOf('#') !== -1) continue;
+        }
+        candidates.push({ stringIndex: s, fret: f });
+      }
+    });
+    if (candidates.length === 0) {
+      // Fallback safety net — shouldn't happen (natural notes occur every 1-2 frets).
+      strings.forEach(function (s) {
+        for (var f = 0; f <= state.maxFret; f++) candidates.push({ stringIndex: s, fret: f });
+      });
+    }
+
+    var pick = candidates[Math.floor(Math.random() * candidates.length)];
+    var midi = midiForPosition(t, pick.stringIndex, pick.fret);
+    return { stringIndex: pick.stringIndex, fret: pick.fret, midi: midi };
+  }
+
+  function nextRound() {
+    clearFretMarkers();
+    state.matchStreakFrames = 0;
+    state.target = pickTarget();
+    var nm = nameFromMidi(state.target.midi);
+    var stringLabel = tuning().labels[state.target.stringIndex];
+
+    el.targetNote.textContent = nm.label;
+    el.targetNote.className = 'readout-note';
+
+    if (state.mode === 'mic') {
+      el.instruction.innerHTML = 'Play it on the <b>' + stringLabel + '</b> string';
+      el.targetSub.textContent = '';
+    } else {
+      el.instruction.innerHTML = 'Tap it on the <b>' + stringLabel + '</b> string';
+      el.targetSub.textContent = '';
+    }
+    highlightTargetString(state.target.stringIndex);
+  }
+
+  function registerResult(isCorrect) {
+    state.attempts++;
+    if (isCorrect) {
+      state.correct++;
+      state.streak++;
+    } else {
+      state.streak = 0;
+    }
+    el.statCorrect.textContent = state.correct;
+    el.statStreak.textContent = state.streak;
+    el.statAccuracy.textContent = state.attempts ? Math.round((state.correct / state.attempts) * 100) + '%' : '—';
+  }
+
+  function flashReadout(kind) {
+    el.targetNote.classList.remove('state-good', 'state-bad');
+    void el.targetNote.offsetWidth;
+    el.targetNote.classList.add(kind === 'good' ? 'state-good' : 'state-bad');
+  }
+
+  function handleTapAnswer(stringIndex, fret) {
+    if (!state.target || state.mode !== 'tap') return;
+    var correct = stringIndex === state.target.stringIndex && fret === state.target.fret;
+    registerResult(correct);
+    if (correct) {
+      flashReadout('good');
+      markPosition(stringIndex, fret, 'good');
+      setTimeout(nextRound, 650);
+    } else {
+      flashReadout('bad');
+      markPosition(stringIndex, fret, 'bad');
+      markPosition(state.target.stringIndex, state.target.fret, 'good');
+      setTimeout(nextRound, 1200);
+    }
+  }
+
+  /* ---------------- Mic mode: audio pipeline ---------------- */
+
+  function isSecureContextOk() {
+    return window.isSecureContext !== false;
+  }
+
+  function startMic() {
+    el.micError.classList.remove('show');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      el.micError.textContent = 'This browser does not expose microphone access (getUserMedia unavailable). Try opening this page directly in a modern browser tab rather than an embedded preview.';
+      el.micError.classList.add('show');
+      return;
+    }
+    if (!isSecureContextOk()) {
+      el.micError.textContent = 'Microphone access needs a secure context (https). Try opening this page’s own URL directly in a new browser tab.';
+      el.micError.classList.add('show');
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+      .then(function (stream) {
+        state.mediaStream = stream;
+        var AC = window.AudioContext || window.webkitAudioContext;
+        state.audioCtx = new AC();
+        var source = state.audioCtx.createMediaStreamSource(stream);
+        var analyser = state.audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        state.analyser = analyser;
+        state.listening = true;
+        el.statusLight.classList.add('listening');
+        el.meterWrap.style.display = 'block';
+        el.micToggleBtn.textContent = 'Stop listening';
+        el.micToggleBtn.classList.add('stop');
+        syncModeUI();
+        pitchLoop();
+      })
+      .catch(function (err) {
+        var msg = 'Could not access the microphone.';
+        if (err && err.name === 'NotAllowedError') msg = 'Microphone permission was denied. Allow microphone access for this page and try again.';
+        else if (err && err.name === 'NotFoundError') msg = 'No microphone was found on this device.';
+        el.micError.textContent = msg;
+        el.micError.classList.add('show');
+      });
+  }
+
+  function stopMic() {
+    state.listening = false;
+    if (state.rafId) cancelAnimationFrame(state.rafId);
+    state.rafId = null;
+    if (state.mediaStream) {
+      state.mediaStream.getTracks().forEach(function (t) { t.stop(); });
+      state.mediaStream = null;
+    }
+    if (state.audioCtx) {
+      state.audioCtx.close().catch(function () {});
+      state.audioCtx = null;
+    }
+    el.statusLight.classList.remove('listening');
+    el.meterWrap.style.display = 'none';
+    el.micToggleBtn.textContent = 'Start listening';
+    el.micToggleBtn.classList.remove('stop');
+    el.instruction.textContent = 'Paused — press start to resume';
+    if (state.mode === 'tune') clearActiveTuneHighlight();
+  }
+
+  var MATCH_TOLERANCE_CENTS = 30;
+  var MATCH_FRAMES_NEEDED = 4;
+  var buf = new Float32Array(2048);
+
+  function pitchLoop() {
+    if (!state.listening || !state.analyser) return;
+    state.analyser.getFloatTimeDomainData(buf);
+    var freq = autoCorrelate(buf, state.audioCtx.sampleRate);
+
+    if (state.mode === 'tune') {
+      if (freq !== -1) {
+        var match = tuneStep(freq);
+        var tunePct = Math.max(-50, Math.min(50, match.cents));
+        el.meterNeedle.style.left = (50 + tunePct) + '%';
+        var tuneInTune = match.absCents <= TUNE_TOLERANCE_CENTS;
+        el.meterNeedle.classList.toggle('good', tuneInTune);
+        el.meterFreq.textContent = freq.toFixed(1) + ' Hz · ' + tuning().labels[match.index];
+        updateTunerTileState(match.index, tuneInTune, match.cents);
+        el.targetNote.textContent = tuning().labels[match.index];
+        el.targetNote.className = 'readout-note' + (tuneInTune ? ' state-good' : '');
+        el.instruction.textContent = tuneInTune ? 'In tune' : (match.cents > 0 ? 'Sharp — tune down' : 'Flat — tune up');
+      } else {
+        el.meterFreq.textContent = '…listening';
+        el.meterNeedle.classList.remove('good');
+        clearActiveTuneHighlight();
+      }
+      state.rafId = requestAnimationFrame(pitchLoop);
+      return;
+    }
+
+    if (freq !== -1 && state.target) {
+      var targetFreq = freqFromMidi(state.target.midi);
+      var cents = centsOff(freq, targetFreq);
+
+      // update meter relative to nearest semitone for readability
+      var nearestMidi = Math.round(69 + 12 * Math.log2(freq / 440));
+      var nearestFreq = freqFromMidi(nearestMidi);
+      var centsFromNearest = centsOff(freq, nearestFreq);
+      var pct = Math.max(-50, Math.min(50, centsFromNearest));
+      el.meterNeedle.style.left = (50 + pct) + '%';
+      el.meterFreq.textContent = freq.toFixed(1) + ' Hz · nearest ' + nameFromMidi(nearestMidi).label;
+
+      var withinTol = Math.abs(cents) <= MATCH_TOLERANCE_CENTS;
+      el.meterNeedle.classList.toggle('good', withinTol);
+
+      if (withinTol) {
+        state.matchStreakFrames++;
+        if (state.matchStreakFrames >= MATCH_FRAMES_NEEDED) {
+          onMicMatch();
+          state.rafId = requestAnimationFrame(pitchLoop);
+          return;
+        }
+      } else {
+        state.matchStreakFrames = 0;
+      }
+    } else {
+      el.meterFreq.textContent = '…listening';
+      el.meterNeedle.classList.remove('good');
+    }
+
+    state.rafId = requestAnimationFrame(pitchLoop);
+  }
+
+  function onMicMatch() {
+    registerResult(true);
+    flashReadout('good');
+    markPosition(state.target.stringIndex, state.target.fret, 'good');
+    var target = state.target;
+    state.target = null; // pause matching during cooldown
+    setTimeout(function () {
+      if (state.listening) nextRound();
+    }, 700);
+  }
+
+  /* ---------------- Tune mode: match live pitch to the nearest open string ---------------- */
+
+  var TUNE_TOLERANCE_CENTS = 6;
+  var tunerTileEls = [];
+  var activeTuneIndex = -1;
+  var tuneMatchFrames = 0;
+
+  function buildTunerTiles() {
+    el.tunerStrings.innerHTML = '';
+    tunerTileEls = [];
+    activeTuneIndex = -1;
+    tuneMatchFrames = 0;
+    state.tunedConfirmed = [false, false, false, false, false, false];
+    var t = tuning();
+    for (var i = 0; i < 6; i++) {
+      var freq = freqFromMidi(t.midi[i]);
+      var tile = document.createElement('div');
+      tile.className = 'tuner-tile';
+      var label = document.createElement('div');
+      label.className = 'tt-label';
+      label.textContent = t.labels[i];
+      var freqEl = document.createElement('div');
+      freqEl.className = 'tt-freq';
+      freqEl.textContent = freq.toFixed(1) + ' Hz';
+      var stateEl = document.createElement('div');
+      stateEl.className = 'tt-state';
+      stateEl.innerHTML = '&nbsp;';
+      tile.appendChild(label);
+      tile.appendChild(freqEl);
+      tile.appendChild(stateEl);
+      el.tunerStrings.appendChild(tile);
+      tunerTileEls.push({ el: tile, stateEl: stateEl });
+    }
+  }
+
+  function clearActiveTuneHighlight() {
+    activeTuneIndex = -1;
+    tuneMatchFrames = 0;
+    tunerTileEls.forEach(function (tile, idx) {
+      tile.el.classList.remove('active');
+      tile.el.classList.toggle('intune', !!state.tunedConfirmed[idx]);
+      tile.stateEl.innerHTML = state.tunedConfirmed[idx] ? '&#10003; in tune' : '&nbsp;';
+    });
+  }
+
+  function updateTunerTileState(matchIndex, inTune, cents) {
+    if (matchIndex !== activeTuneIndex) {
+      activeTuneIndex = matchIndex;
+      tuneMatchFrames = 0;
+    }
+    if (inTune) {
+      tuneMatchFrames++;
+      if (tuneMatchFrames >= MATCH_FRAMES_NEEDED) state.tunedConfirmed[matchIndex] = true;
+    } else {
+      tuneMatchFrames = 0;
+    }
+    tunerTileEls.forEach(function (tile, idx) {
+      var isActive = idx === matchIndex;
+      tile.el.classList.toggle('active', isActive && !state.tunedConfirmed[idx]);
+      tile.el.classList.toggle('intune', !!state.tunedConfirmed[idx]);
+      if (!isActive) {
+        tile.stateEl.innerHTML = state.tunedConfirmed[idx] ? '&#10003; in tune' : '&nbsp;';
+        return;
+      }
+      if (state.tunedConfirmed[idx]) tile.stateEl.innerHTML = '&#10003; in tune';
+      else if (inTune) tile.stateEl.textContent = 'in tune';
+      else tile.stateEl.textContent = cents > 0 ? '▲ sharp' : '▼ flat';
+    });
+  }
+
+  function tuneStep(freq) {
+    var t = tuning();
+    var best = null;
+    for (var i = 0; i < 6; i++) {
+      var f = freqFromMidi(t.midi[i]);
+      var cents = centsOff(freq, f);
+      var absCents = Math.abs(cents);
+      if (!best || absCents < best.absCents) best = { index: i, cents: cents, absCents: absCents };
+    }
+    return best;
+  }
+
+  function enterTuneMode() {
+    buildTunerTiles();
+    el.tunerStrings.style.display = 'grid';
+    highlightTargetString(-1);
+    el.targetSub.textContent = '';
+    if (state.listening) {
+      el.instruction.textContent = 'Pluck an open string to tune it';
+      el.targetNote.textContent = '—';
+      el.targetNote.className = 'readout-note';
+    } else {
+      el.instruction.textContent = 'Press start to tune';
+      el.targetNote.textContent = '—';
+      el.targetNote.className = 'readout-note';
+    }
+  }
+
+  /* ---------------- Find mode: show every occurrence of a chosen note on the neck ---------------- */
+
+  function selectedFindNotes() {
+    // Chromatic order, not selection order — so the legend/readout are stable
+    // regardless of the order notes were toggled in.
+    return NOTE_NAMES_SHARP.filter(function (n) { return state.findNotes[n]; });
+  }
+
+  function drawFindMarker(stringIndex, fret, label, noteName) {
+    var cell = fretCells.find(function (c) { return c.stringIndex === stringIndex && c.fret === fret; });
+    if (!cell) return;
+    var key = stringIndex + '-' + fret + '-find';
+    if (fretPositionMarkers[key]) return;
+    var colors = NOTE_COLORS[noteName];
+    var g = svgEl('g', {});
+    var dot = svgEl('circle', {
+      cx: cell.cx, cy: cell.cy, r: 16.5,
+      fill: colors.hex, stroke: 'var(--wood)', 'stroke-width': 1.8
+    });
+    var text = svgEl('text', {
+      x: cell.cx, y: cell.cy + 4, 'text-anchor': 'middle',
+      'font-family': 'var(--font-display)', 'font-weight': '700', 'font-size': '11.5',
+      fill: colors.text
+    });
+    text.textContent = label;
+    g.appendChild(dot);
+    g.appendChild(text);
+    el.fretboardSvg.appendChild(g);
+    fretPositionMarkers[key] = g;
+  }
+
+  function renderFindMarkers() {
+    clearFretMarkers();
+    el.findList.innerHTML = '';
+
+    var notes = selectedFindNotes();
+    if (notes.length === 0) {
+      el.findList.style.display = 'none';
+      return;
+    }
+
+    var t = tuning();
+    var byString = [[], [], [], [], [], []]; // indexed by tuning index, 0 = Low E ... 5 = High e
+
+    for (var s = 0; s < 6; s++) {
+      for (var f = 0; f <= state.maxFret; f++) {
+        var midi = midiForPosition(t, s, f);
+        var nm = nameFromMidi(midi);
+        if (state.findNotes[nm.name]) {
+          byString[s].push({ fret: f, label: nm.label, note: nm.name });
+          drawFindMarker(s, f, nm.label, nm.name);
+        }
+      }
+    }
+
+    // One row per string, high e first down to low E, matching the fretboard's
+    // top-to-bottom order — each string listed once with all of its occurrences,
+    // each occurrence coloured by which selected note it belongs to.
+    for (var si = 5; si >= 0; si--) {
+      var row = document.createElement('div');
+      row.className = 'find-list-item';
+
+      var stringSpan = document.createElement('span');
+      stringSpan.className = 'fli-string';
+      stringSpan.textContent = t.labels[si] + ' string';
+      row.appendChild(stringSpan);
+
+      var occWrap = document.createElement('span');
+      occWrap.className = 'fli-occurrences';
+      if (byString[si].length === 0) {
+        var empty = document.createElement('span');
+        empty.className = 'fli-none';
+        empty.textContent = 'none in range';
+        occWrap.appendChild(empty);
+      } else {
+        byString[si].forEach(function (o) {
+          var occ = document.createElement('span');
+          occ.className = 'fli-occ';
+          var fretSpan = document.createElement('span');
+          fretSpan.className = 'fret';
+          fretSpan.textContent = o.fret === 0 ? 'open' : 'fret ' + o.fret;
+          var noteSpan = document.createElement('span');
+          noteSpan.className = 'note';
+          noteSpan.style.color = NOTE_COLORS[o.note].hex;
+          noteSpan.textContent = o.label;
+          occ.appendChild(fretSpan);
+          occ.appendChild(noteSpan);
+          occWrap.appendChild(occ);
+        });
+      }
+      row.appendChild(occWrap);
+      el.findList.appendChild(row);
+    }
+    el.findList.style.display = 'flex';
+  }
+
+  function enterFindMode() {
+    highlightTargetString(-1);
+    el.targetSub.textContent = '';
+    var notes = selectedFindNotes();
+    if (notes.length > 0) {
+      el.targetNote.innerHTML = notes.map(function (n) {
+        return '<span style="color:' + NOTE_COLORS[n].hex + ';">' + n + '</span>';
+      }).join('<span style="color:var(--text-faint);"> · </span>');
+      el.instruction.textContent = (notes.length === 1 ? 'Every ' + notes[0] : 'Every ' + notes.join(', ')) + ' on the neck is marked below';
+    } else {
+      el.targetNote.textContent = '—';
+      el.instruction.textContent = 'Choose one or more notes to find them across the neck';
+    }
+    el.targetNote.className = 'readout-note';
+    renderFindMarkers();
+    updateLegend();
+  }
+
+  function currentNoteChoices() {
+    return state.noteFilterMode === 'naturals' ? NATURAL_NOTES : NOTE_NAMES_SHARP;
+  }
+
+  function renderNotePicker() {
+    el.notePicker.innerHTML = '';
+    currentNoteChoices().forEach(function (n) {
+      var colors = NOTE_COLORS[n];
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'note-pick-btn' + (state.findNotes[n] ? ' active' : '');
+      btn.style.setProperty('--note-color', colors.hex);
+      btn.style.setProperty('--note-text', colors.text);
+      btn.textContent = n;
+      btn.addEventListener('click', function () {
+        if (state.findNotes[n]) delete state.findNotes[n];
+        else state.findNotes[n] = true;
+        btn.classList.toggle('active', !!state.findNotes[n]);
+        saveSettings();
+        enterFindMode();
+      });
+      el.notePicker.appendChild(btn);
+    });
+  }
+
+  function updateLegend() {
+    if (state.mode === 'find') {
+      var notes = selectedFindNotes();
+      if (notes.length === 0) {
+        el.legendRow.innerHTML = '<span style="color:var(--text-faint);">pick a note below to mark it on the fretboard</span>';
+      } else {
+        el.legendRow.innerHTML = notes.map(function (n) {
+          return '<span class="find-legend-swatch"><span class="dot" style="background:' + NOTE_COLORS[n].hex + ';"></span>' + n + '</span>';
+        }).join('');
+      }
+    } else {
+      el.legendRow.innerHTML =
+        '<span><span class="swatch" style="background:var(--bad);"></span> target string</span>' +
+        '<span><span class="swatch" style="background:var(--good);"></span> correct</span>' +
+        '<span><span class="swatch" style="background:var(--bad);"></span> wrong tap</span>';
+    }
+  }
+
+  // Re-syncs the readout/fretboard/tuner-tiles with whatever state.mode currently is.
+  // Centralised here so tuning/fret-range/marker changes don't have to re-derive this per handler.
+  function syncModeUI() {
+    el.tunerStrings.style.display = 'none';
+    el.findList.style.display = 'none';
+    el.findControls.style.display = state.mode === 'find' ? 'block' : 'none';
+    updateLegend();
+
+    if (state.mode === 'tune') {
+      enterTuneMode();
+      return;
+    }
+    if (state.mode === 'find') {
+      enterFindMode();
+      return;
+    }
+    if (state.mode === 'tap') {
+      el.instruction.textContent = 'Tap the fretboard to answer';
+      nextRound();
+    } else if (state.listening) {
+      nextRound();
+    } else {
+      el.targetNote.textContent = '—';
+      el.targetNote.className = 'readout-note';
+      el.instruction.textContent = 'Press start to begin';
+      el.targetSub.textContent = '';
+    }
+  }
+
+  /* ---------------- Controls wiring ---------------- */
+
+  function renderStringToggles() {
+    el.stringToggles.innerHTML = '';
+    var labels = tuning().labels;
+    for (var i = 0; i < 6; i++) {
+      (function (i) {
+        var wrap = document.createElement('label');
+        wrap.className = 'string-toggle' + (state.enabledStrings[i] ? ' on' : '');
+        var input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = state.enabledStrings[i];
+        input.addEventListener('change', function () {
+          var enabledCount = state.enabledStrings.filter(Boolean).length;
+          if (!input.checked && enabledCount <= 1) { input.checked = true; return; }
+          state.enabledStrings[i] = input.checked;
+          wrap.classList.toggle('on', input.checked);
+          saveSettings();
+        });
+        wrap.appendChild(input);
+        var span = document.createElement('span');
+        span.textContent = labels[i];
+        wrap.appendChild(span);
+        el.stringToggles.appendChild(wrap);
+      })(i);
+    }
+  }
+
+  el.modeSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-mode]');
+    if (!btn) return;
+    var mode = btn.getAttribute('data-mode');
+    if (mode === state.mode) return;
+    state.mode = mode;
+    Array.prototype.forEach.call(el.modeSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    el.micStartField.style.display = (mode === 'mic' || mode === 'tune') ? 'block' : 'none';
+    if ((mode === 'tap' || mode === 'find') && state.listening) stopMic();
+    saveSettings();
+    buildFretboard();
+    syncModeUI();
+  });
+
+  el.micToggleBtn.addEventListener('click', function () {
+    if (state.listening) stopMic(); else startMic();
+  });
+
+  el.tuningSelect.value = state.tuningKey;
+  el.tuningSelect.addEventListener('change', function () {
+    state.tuningKey = el.tuningSelect.value;
+    saveSettings();
+    renderStringToggles();
+    buildFretboard();
+    syncModeUI();
+  });
+
+  el.fretRange.value = state.maxFret;
+  el.fretRangeVal.textContent = state.maxFret;
+  el.fretRange.addEventListener('input', function () {
+    state.maxFret = parseInt(el.fretRange.value, 10);
+    el.fretRangeVal.textContent = state.maxFret;
+    saveSettings();
+    buildFretboard();
+    syncModeUI();
+  });
+
+  el.markerSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-markers]');
+    if (!btn) return;
+    var on = btn.getAttribute('data-markers') === 'on';
+    if (on === state.showFretMarkers) return;
+    state.showFretMarkers = on;
+    Array.prototype.forEach.call(el.markerSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    saveSettings();
+    buildFretboard();
+    syncModeUI();
+  });
+
+  el.noteFilterSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-filter]');
+    if (!btn) return;
+    var mode = btn.getAttribute('data-filter');
+    if (mode === state.noteFilterMode) return;
+    state.noteFilterMode = mode;
+    Array.prototype.forEach.call(el.noteFilterSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    if (mode === 'naturals') {
+      // Drop any selected accidentals — their buttons are about to disappear.
+      NOTE_NAMES_SHARP.forEach(function (n) {
+        if (n.indexOf('#') !== -1) delete state.findNotes[n];
+      });
+    }
+    saveSettings();
+    renderNotePicker();
+    syncModeUI();
+  });
+
+  /* ---------------- Init ---------------- */
+
+  function init() {
+    Array.prototype.forEach.call(el.modeSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-mode') === state.mode);
+    });
+    Array.prototype.forEach.call(el.markerSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', (b.getAttribute('data-markers') === 'on') === state.showFretMarkers);
+    });
+    Array.prototype.forEach.call(el.noteFilterSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-filter') === state.noteFilterMode);
+    });
+    el.micStartField.style.display = (state.mode === 'mic' || state.mode === 'tune') ? 'block' : 'none';
+    renderStringToggles();
+    renderNotePicker();
+    buildFretboard();
+    syncModeUI();
+  }
+
+  init();
+
+  window.addEventListener('beforeunload', function () {
+    if (state.listening) stopMic();
+  });
+})();
+</script>
+
+</body>
+</html>

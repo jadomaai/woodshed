@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Autumn Leaves — From Shape to Song</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-2:      #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-root:    #2a78d6;
+    --series-natural: #eb6834;
+    --series-flat:    #1baf7a;
+    --dot-ink:        #0b0b0b;
+    /* quality colors — deliberately a different palette slice from the root/natural/flat
+       trio above, so "chord quality" and "scale-degree type" never share a color meaning */
+    --q-maj7:  #eda100;
+    --q-dom7:  #e87ba4;
+    --q-min7:  #008300;
+    --q-m7b5:  #4a3aa7;
+    --q-min6:  #e34948;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --surface-2:      #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-root:    #3987e5;
+      --series-natural: #d95926;
+      --series-flat:    #199e70;
+      --dot-ink:        #0b0b0b;
+      --q-maj7:  #c98500;
+      --q-dom7:  #d55181;
+      --q-min7:  #008300;
+      --q-m7b5:  #9085e9;
+      --q-min6:  #e66767;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --surface-2:      #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-root:    #3987e5;
+    --series-natural: #d95926;
+    --series-flat:    #199e70;
+    --dot-ink:        #0b0b0b;
+    --q-maj7:  #c98500;
+    --q-dom7:  #d55181;
+    --q-min7:  #008300;
+    --q-m7b5:  #9085e9;
+    --q-min6:  #e66767;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--surface-2); color: var(--text-primary); }
+  .viz-root { max-width: 960px; margin: 0 auto; padding: 28px 20px 40px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 0 0 10px; color: var(--text-primary); }
+  .subtitle { color: var(--text-secondary); font-size: 14px; line-height: 1.55; margin: 0 0 20px; max-width: 720px; }
+  .theme-toggle {
+    position: absolute; top: 24px; right: 24px; font-size: 12px; color: var(--text-secondary);
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; cursor: pointer;
+  }
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 18px; }
+
+  /* ---- quality legend ---- */
+  .qlegend { display: flex; flex-wrap: wrap; gap: 10px 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+  .qlegend-item { display: flex; align-items: center; gap: 6px; }
+  .qswatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  /* ---- song form timeline ---- */
+  .section-block { margin-bottom: 14px; }
+  .section-head { font-family: monospace; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; display: flex; gap: 10px; align-items: baseline; }
+  .section-key-hint { font-family: system-ui, sans-serif; text-transform: none; font-weight: 400; color: var(--text-muted); font-size: 11.5px; }
+  .bar-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bar-chip {
+    position: relative; min-width: 58px; padding: 8px 9px 7px; border-radius: 8px; cursor: pointer;
+    background: var(--surface-2); border: 1px solid var(--border); border-left: 4px solid var(--q-color, var(--border));
+    font-family: inherit; text-align: left; color: var(--text-primary);
+  }
+  .bar-chip .bn { font-size: 9px; color: var(--text-muted); display: block; margin-bottom: 2px; }
+  .bar-chip .bc { font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .bar-chip.selected { background: var(--surface-1); box-shadow: 0 0 0 2px var(--text-primary) inset; }
+  .bar-chip:hover { border-color: var(--text-secondary); }
+  .bar-chip.split { display: flex; flex-direction: column; gap: 2px; }
+  .bar-chip .bc2 { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+
+  /* ---- transport ---- */
+  .transport { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .transport button {
+    font-family: inherit; font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface-2); color: var(--text-primary); cursor: pointer;
+  }
+  .transport button:hover { border-color: var(--series-root); }
+  .transport button:disabled { opacity: .4; cursor: default; }
+  .transport .pos { font-size: 12.5px; color: var(--text-muted); }
+
+  /* ---- detail panel ---- */
+  .detail-top { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  .detail-chordname { font-size: 30px; font-weight: 800; }
+  .detail-quality-badge {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+    padding: 4px 10px 4px 8px; border-radius: 999px; color: var(--text-primary); margin-top: 6px;
+    background: var(--surface-2); border: 1px solid var(--border);
+  }
+  .detail-quality-badge .qdot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .detail-meta { font-size: 13px; color: var(--text-secondary); line-height: 1.6; max-width: 380px; }
+  .detail-meta b { color: var(--text-primary); }
+  .detail-desc { font-size: 12.5px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; max-width: 380px; }
+
+  table.board { border-collapse: collapse; }
+  table.board th { font-size: 11px; font-weight: 600; color: var(--text-muted); padding: 4px 4px 8px; text-align: center; }
+  table.board th.root-fret-head { color: var(--series-root); }
+  table.board td.string-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); padding-right: 8px; text-align: right; white-space: nowrap; }
+  table.board td.cell { position: relative; text-align: center; padding: 3px; border-bottom: 1px solid var(--gridline); }
+  tr.mute-row .string-line { background: var(--gridline); }
+  .fret-line-wrap { position: relative; height: 48px; display: flex; align-items: center; justify-content: center; }
+  .string-line { position: absolute; left: -4px; right: -4px; top: 50%; height: 1px; background: var(--baseline); z-index: 0; }
+  .dot {
+    position: relative; z-index: 1; width: 40px; height: 40px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 11px; line-height: 1.1; border: 2px solid transparent;
+  }
+  .dot .note { font-weight: 700; font-size: 12px; }
+  .dot .deg { font-size: 9px; opacity: .9; }
+  .dot.root { background: var(--series-root); color: var(--dot-ink); border-color: var(--series-root); }
+  .dot.natural { background: var(--series-natural); color: var(--dot-ink); }
+  .dot.flat { background: var(--series-flat); color: var(--dot-ink); }
+  .dot.mute-cell { background: transparent; border: none; }
+  .dot.ext {
+    width: 34px; height: 34px; background: var(--surface-1); color: var(--text-secondary);
+    border: 2px dashed var(--text-muted);
+  }
+  .dot .tag {
+    position: absolute; top: -6px; right: -8px; font-size: 7.5px; font-weight: 800; background: var(--surface-1);
+    border: 1px solid currentColor; border-radius: 6px; padding: 1px 3px; white-space: nowrap;
+  }
+
+  .tone-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .tone-chip { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 11px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--border); min-width: 52px; }
+  .tone-chip .note { font-family: monospace; font-weight: 700; font-size: 13px; }
+  .tone-chip .deg { font-family: monospace; font-size: 11px; color: var(--text-muted); }
+
+  .footnote { font-size: 12px; color: var(--text-muted); margin-top: 18px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="viz-root" id="vizRoot">
+  <button class="theme-toggle" id="themeToggle" type="button">Dark mode</button>
+  <h1>Autumn Leaves — From Shape to Song</h1>
+  <p class="subtitle">
+    This is your teacher's E (6th) string pattern applied to the real chord chart —
+    the one from your PDF (Joseph Kosma's changes, E minor / G major, as set in iReal Pro).
+    Every chord below is one of the five shapes you already know; only the root note and
+    which string carries it changes. Click a bar, or step through with the buttons, to see
+    exactly where your fingers go.
+  </p>
+
+  <div class="panel">
+    <h2>The 32-bar form</h2>
+    <div class="qlegend" id="qlegend"></div>
+    <div id="sections"></div>
+  </div>
+
+  <div class="panel">
+    <div class="transport">
+      <button id="prevBtn">&larr; Prev</button>
+      <button id="nextBtn">Next &rarr;</button>
+      <span class="pos" id="posLabel"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="detail-top">
+      <div>
+        <div class="detail-chordname" id="chordName"></div>
+        <div class="detail-quality-badge" id="qualityBadge"></div>
+        <div class="detail-desc" id="qualityDesc"></div>
+      </div>
+      <div class="detail-meta" id="detailMeta"></div>
+    </div>
+    <div style="overflow-x:auto; margin-top:16px;">
+      <table class="board" id="board"></table>
+    </div>
+    <div class="tone-list" id="toneList"></div>
+  </div>
+
+  <p class="footnote" id="footnote"></p>
+</div>
+
+<script>
+(function () {
+  const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const DEGREES = ['R','b2','2','b3','3','4','b5','5','b6','6','b7','7'];
+  const DEGREE_DISPLAY = {R:'R', b2:'♭2', 2:'2', b3:'♭3', 3:'3', 4:'4', b5:'♭5', 5:'5', b6:'♭6', 6:'6', b7:'♭7', 7:'7'};
+  const NOTE_PC = {C:0,'C#':1,D:2,'D#':3,E:4,F:5,'F#':6,G:7,'G#':8,A:9,'A#':10,B:11};
+
+  const STRING_INFO = {
+    6: { label: 'E', open: 4 }, 5: { label: 'A', open: 9 }, 4: { label: 'D', open: 2 },
+    3: { label: 'G', open: 7 }, 2: { label: 'B', open: 11 }, 1: { label: 'e', open: 4 },
+  };
+  const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6];
+
+  function cell(deg, cls) { return { deg, cls }; }
+  // Same six precomputed shapes as the fretboard tool.
+  const SHAPES = {
+    6: { helpers: [
+      { string: 3, cells: { '-1': cell('2','target'), '0': cell('b3','target'), '1': cell('3','target') } },
+      { string: 2, cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 4, cells: { '-1': cell('6','target'), '0': cell('b7','target'), '1': cell('7','target') } },
+    ] },
+    1: { helpers: [
+      { string: 3, cells: { '-1': cell('2','target'), '0': cell('b3','target'), '1': cell('3','target') } },
+      { string: 2, cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 4, cells: { '-1': cell('6','target'), '0': cell('b7','target'), '1': cell('7','target') } },
+    ] },
+    5: { helpers: [
+      { string: 6, cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 3, cells: { '-1': cell('6','target'), '0': cell('b7','target'), '1': cell('7','target') } },
+      { string: 2, cells: { '-1': cell('b2','avoid'), '0': cell('2','target'), '1': cell('b3','target') } },
+    ] },
+    4: { helpers: [
+      { string: 5, cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 6, cells: { '-1': cell('b2','avoid'), '0': cell('2','target'), '1': cell('b3','target') } },
+      { string: 2, cells: { '-1': cell('b6','dup'), '0': cell('6','target'), '1': cell('b7','target') } },
+    ] },
+    3: { helpers: [
+      { string: 4, cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 2, cells: { '-1': cell('b3','target'), '0': cell('3','target'), '1': cell('4','avoid') } },
+      { string: 1, cells: { '-1': cell('b6','dup'), '0': cell('6','target'), '1': cell('b7','target') } },
+    ] },
+    2: { helpers: [
+      { string: 4, cells: { '-1': cell('2','target'), '0': cell('b3','target'), '1': cell('3','target') } },
+      { string: 5, cells: { '-1': cell('6','target'), '0': cell('b7','target'), '1': cell('7','target') } },
+      { string: 3, cells: { '-1': cell('5','target'), '0': cell('b6','target'), '1': cell('6','dup') } },
+    ] },
+  };
+
+  function buildDegreeMap(rootString) {
+    const map = { R: { string: rootString, offset: 0 } };
+    const shape = SHAPES[rootString];
+    shape.helpers.forEach(h => {
+      [-1, 0, 1].forEach(off => {
+        const c = h.cells[off];
+        if (c.cls === 'target' && !(c.deg in map)) map[c.deg] = { string: h.string, offset: off };
+      });
+    });
+    shape.helpers.forEach(h => {
+      [-1, 0, 1].forEach(off => {
+        const c = h.cells[off];
+        if (c.cls === 'dup' && !(c.deg in map)) map[c.deg] = { string: h.string, offset: off };
+      });
+    });
+    return map;
+  }
+
+  const QUALITIES = {
+    maj7: { degrees: ['R','3','5','7'], label: 'Major 7th', color: 'var(--q-maj7)',
+      desc: 'Root, major 3rd, perfect 5th, major 7th. The brightest of the five — no altered tones at all.' },
+    dom7: { degrees: ['R','3','5','b7'], label: 'Dominant 7th', color: 'var(--q-dom7)',
+      desc: 'Root, major 3rd, perfect 5th, minor 7th. The "wants to resolve" chord — every V7 in this tune.' },
+    min7: { degrees: ['R','b3','5','b7'], label: 'Minor 7th', color: 'var(--q-min7)',
+      desc: 'Root, minor 3rd, perfect 5th, minor 7th. Mellow — the ii chords, and the passing minor7 in bar 27.' },
+    m7b5: { degrees: ['R','b3','b5','b7'], label: 'Half-diminished 7th', color: 'var(--q-m7b5)',
+      desc: 'Root, minor 3rd, diminished 5th, minor 7th. The ii chord in the E minor phrases — F#m7♭5.' },
+    min6: { degrees: ['R','b3','5','6'], label: 'Minor 6th', color: 'var(--q-min6)',
+      desc: 'Root, minor 3rd, perfect 5th, major 6th. The song’s home chord (i) — Em6, not a plain Em or Em7.' },
+  };
+
+  function letterToRootPc(letter) { return NOTE_PC[letter]; }
+  function fretFor(stringNum, letter) {
+    const open = STRING_INFO[stringNum].open;
+    const target = letterToRootPc(letter);
+    for (let f = 1; f <= 12; f++) if ((open + f) % 12 === target) return f;
+    return null;
+  }
+
+  // ---- The song, exactly as given in the user's PDF (iReal Pro chart) ----
+  // string/fret were chosen to (a) keep every chord's full 4-note shape reachable, and
+  // (b) stay as close as possible to the previous chord's hand position.
+  const A_SECTION = [
+    { sym: 'Am7',   letter: 'A',  q: 'min7', str: 3, fret: 2 },
+    { sym: 'D7',    letter: 'D',  q: 'dom7', str: 2, fret: 3 },
+    { sym: 'G maj7',letter: 'G',  q: 'maj7', str: 1, fret: 3 },
+    { sym: 'C maj7',letter: 'C',  q: 'maj7', str: 2, fret: 1 },
+    { sym: 'F#m7♭5',letter: 'F#', q: 'm7b5', str: 1, fret: 2 },
+    { sym: 'B7♭13', letter: 'B',  q: 'dom7', str: 1, fret: 7, ext: true },
+    { sym: 'Em6',   letter: 'E',  q: 'min6', str: 2, fret: 5 },
+    { sym: 'Em6',   letter: 'E',  q: 'min6', str: 2, fret: 5 },
+  ];
+  const A_REPEAT = [
+    { sym: 'Am7',   letter: 'A',  q: 'min7', str: 1, fret: 5 },
+    { sym: 'D7',    letter: 'D',  q: 'dom7', str: 2, fret: 3 },
+    { sym: 'G maj7',letter: 'G',  q: 'maj7', str: 1, fret: 3 },
+    { sym: 'C maj7',letter: 'C',  q: 'maj7', str: 2, fret: 1 },
+    { sym: 'F#m7♭5',letter: 'F#', q: 'm7b5', str: 1, fret: 2 },
+    { sym: 'B7♭13', letter: 'B',  q: 'dom7', str: 1, fret: 7, ext: true },
+    { sym: 'Em6',   letter: 'E',  q: 'min6', str: 2, fret: 5 },
+    { sym: 'Em6',   letter: 'E',  q: 'min6', str: 2, fret: 5 },
+  ];
+  const B_SECTION = [
+    { sym: 'F#m7♭5',letter: 'F#', q: 'm7b5', str: 1, fret: 2 },
+    { sym: 'B7♭13', letter: 'B',  q: 'dom7', str: 1, fret: 7, ext: true },
+    { sym: 'Em6',   letter: 'E',  q: 'min6', str: 2, fret: 5 },
+    { sym: 'Em6',   letter: 'E',  q: 'min6', str: 2, fret: 5 },
+    { sym: 'Am7',   letter: 'A',  q: 'min7', str: 1, fret: 5 },
+    { sym: 'D7',    letter: 'D',  q: 'dom7', str: 2, fret: 3 },
+    { sym: 'G maj7',letter: 'G',  q: 'maj7', str: 1, fret: 3 },
+    { sym: 'C maj7',letter: 'C',  q: 'maj7', str: 2, fret: 1 },
+  ];
+  const C_SECTION = [
+    { sym: 'F#m7♭5',letter: 'F#', q: 'm7b5', str: 1, fret: 2 },
+    { sym: 'B7♭13', letter: 'B',  q: 'dom7', str: 1, fret: 7, ext: true },
+    { sym: 'Em7',   letter: 'E',  q: 'min7', str: 2, fret: 5, pair: 'a' },
+    { sym: 'D#7',   letter: 'D#', q: 'dom7', str: 2, fret: 4, pair: 'b' },
+    { sym: 'Dm7',   letter: 'D',  q: 'min7', str: 2, fret: 3, pair: 'a' },
+    { sym: 'C#7',   letter: 'C#', q: 'dom7', str: 2, fret: 2, pair: 'b' },
+    { sym: 'F#m7♭5',letter: 'F#', q: 'm7b5', str: 1, fret: 2 },
+    { sym: 'B7♭13', letter: 'B',  q: 'dom7', str: 1, fret: 7, ext: true },
+    { sym: 'Em6',   letter: 'E',  q: 'min6', str: 2, fret: 5 },
+    { sym: 'Em6',   letter: 'E',  q: 'min6', str: 2, fret: 5 },
+  ];
+
+  const SONG = [
+    { name: 'A',           startBar: 1,  bars: A_SECTION, keyHint: 'ii–V–I in G major, then ii–V–i in E minor' },
+    { name: 'A (repeat)',  startBar: 9,  bars: A_REPEAT,  keyHint: 'same eight bars again' },
+    { name: 'B',           startBar: 17, bars: B_SECTION, keyHint: 'E minor first, then G major' },
+    { name: 'C',           startBar: 25, bars: C_SECTION, keyHint: 'E minor, with two chromatic connector chords in bars 27–28' },
+  ];
+  // Flatten into a single step list for the prev/next transport.
+  const STEPS = [];
+  SONG.forEach(sec => {
+    let barNum = sec.startBar;
+    let lastBar = -1;
+    sec.bars.forEach(b => {
+      const isSecondHalf = b.pair === 'b';
+      if (!isSecondHalf) { lastBar = barNum; barNum++; }
+      STEPS.push({ ...b, section: sec.name, bar: lastBar });
+    });
+  });
+
+  let stepIndex = 0;
+
+  const qlegend = document.getElementById('qlegend');
+  const sectionsEl = document.getElementById('sections');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const posLabel = document.getElementById('posLabel');
+  const chordName = document.getElementById('chordName');
+  const qualityBadge = document.getElementById('qualityBadge');
+  const qualityDesc = document.getElementById('qualityDesc');
+  const detailMeta = document.getElementById('detailMeta');
+  const board = document.getElementById('board');
+  const toneList = document.getElementById('toneList');
+  const footnote = document.getElementById('footnote');
+  const themeToggle = document.getElementById('themeToggle');
+
+  qlegend.innerHTML = Object.entries(QUALITIES).map(([key, q]) =>
+    `<div class="qlegend-item"><span class="qswatch" style="background:${q.color}"></span>${q.label}</div>`
+  ).join('');
+
+  function buildSections() {
+    sectionsEl.innerHTML = SONG.map((sec) => {
+      const barCount = sec.bars.filter(x => x.pair !== 'b').length;
+      return `<div class="section-block">
+        <div class="section-head">${sec.name} <span class="section-key-hint">— bars ${sec.startBar}–${sec.startBar + barCount - 1} · ${sec.keyHint}</span></div>
+        <div class="bar-row" data-section="${sec.name}"></div>
+      </div>`;
+    }).join('');
+
+    // Now populate each bar-row using STEPS (which already has correct bar numbers), grouped by section+pair
+    SONG.forEach(sec => {
+      const row = sectionsEl.querySelector(`.bar-row[data-section="${CSS.escape(sec.name)}"]`);
+      const stepsInSection = STEPS.map((s, idx) => ({ s, idx })).filter(x => x.s.section === sec.name);
+      // group pairs into one chip
+      const grouped = [];
+      stepsInSection.forEach(({ s, idx }) => {
+        if (s.pair === 'b' && grouped.length && grouped[grouped.length - 1].bar === s.bar) {
+          grouped[grouped.length - 1].steps.push({ s, idx });
+        } else {
+          grouped.push({ bar: s.bar, steps: [{ s, idx }] });
+        }
+      });
+      row.innerHTML = grouped.map(g => {
+        if (g.steps.length === 2) {
+          const [first, second] = g.steps;
+          return `<button class="bar-chip split" data-idx="${first.idx}" data-idx2="${second.idx}" style="--q-color:${QUALITIES[first.s.q].color}">
+            <span class="bn">bar ${g.bar}</span>
+            <span class="bc2">${first.s.sym}</span>
+            <span class="bc2">${second.s.sym}</span>
+          </button>`;
+        }
+        const { s, idx } = g.steps[0];
+        return `<button class="bar-chip" data-idx="${idx}" style="--q-color:${QUALITIES[s.q].color}">
+          <span class="bn">bar ${g.bar}</span>
+          <span class="bc">${s.sym}</span>
+        </button>`;
+      }).join('');
+    });
+
+    sectionsEl.querySelectorAll('.bar-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        stepIndex = Number(chip.dataset.idx);
+        render();
+      });
+    });
+  }
+
+  function noteAt(stringNum, fret) {
+    return NOTE_NAMES[(STRING_INFO[stringNum].open + fret) % 12];
+  }
+
+  function render() {
+    const step = STEPS[stepIndex];
+    const q = QUALITIES[step.q];
+    const rootPitch = (STRING_INFO[step.str].open + step.fret) % 12;
+    const degreeMap = buildDegreeMap(step.str);
+
+    // ---- header / transport ----
+    posLabel.textContent = `Bar ${step.bar} · ${step.section} · step ${stepIndex + 1} of ${STEPS.length}`;
+    prevBtn.disabled = stepIndex === 0;
+    nextBtn.disabled = stepIndex === STEPS.length - 1;
+
+    sectionsEl.querySelectorAll('.bar-chip').forEach(chip => {
+      const idxs = [Number(chip.dataset.idx), chip.dataset.idx2 ? Number(chip.dataset.idx2) : null];
+      chip.classList.toggle('selected', idxs.includes(stepIndex));
+    });
+
+    // ---- detail header ----
+    chordName.textContent = step.sym;
+    qualityBadge.innerHTML = `<span class="qdot" style="background:${q.color}"></span>${q.label}`;
+    qualityDesc.textContent = q.desc;
+
+    const stringLabel = STRING_INFO[step.str].label;
+    detailMeta.innerHTML = `Rooted on the <b>${stringLabel} string</b>, fret <b>${step.fret}</b> (${NOTE_NAMES[rootPitch]}).<br>` +
+      `Same five shapes as your fingering reference — only the root position moves.`;
+
+    // ---- fretboard diagram: 3 fret columns around the root ----
+    const R = step.fret;
+    const cols = [R - 1, R, R + 1].filter(f => f >= 0);
+    const toneAt = new Map(); // `${string}:${offset}` -> {deg, ext}
+    q.degrees.forEach(d => {
+      const loc = degreeMap[d];
+      toneAt.set(loc.string + ':' + loc.offset, { deg: d });
+    });
+    let extLoc = null;
+    if (step.ext && degreeMap['b6']) {
+      extLoc = degreeMap['b6'];
+      toneAt.set(extLoc.string + ':' + extLoc.offset, { deg: 'b6', isExt: true });
+    }
+
+    let html = '<tr><th></th>';
+    cols.forEach(f => { html += `<th class="${f === R ? 'root-fret-head' : ''}">fret ${f}</th>`; });
+    html += '</tr>';
+
+    DISPLAY_ORDER.forEach(sNum => {
+      const info = STRING_INFO[sNum];
+      html += `<tr><td class="string-label">${info.label}</td>`;
+      cols.forEach(f => {
+        const offset = f - R;
+        const key = sNum + ':' + offset;
+        const tone = toneAt.get(key);
+        if (!tone) {
+          html += `<td class="cell"><div class="fret-line-wrap"><span class="string-line"></span></div></td>`;
+          return;
+        }
+        const noteName = noteAt(sNum, f);
+        const degKey = tone.deg;
+        const category = degKey === 'R' ? 'root' : (degKey.startsWith('b') ? 'flat' : 'natural');
+        const dotClass = tone.isExt ? 'ext' : category;
+        const label = tone.isExt ? '♭13' : DEGREE_DISPLAY[degKey];
+        html += `<td class="cell">
+          <div class="fret-line-wrap">
+            <span class="string-line"></span>
+            <div class="dot ${dotClass}">
+              <span class="note">${noteName}</span><span class="deg">${label}</span>
+              ${tone.isExt ? '<span class="tag">ext</span>' : ''}
+            </div>
+          </div>
+        </td>`;
+      });
+      html += '</tr>';
+    });
+    board.innerHTML = html;
+
+    // ---- tone list ----
+    const order = ['R','2','b3','3','4','b5','5','b6','6','b7','7'];
+    const tones = q.degrees.map(d => {
+      const loc = degreeMap[d];
+      const f = R + loc.offset;
+      return { deg: d, note: noteAt(loc.string, f), string: STRING_INFO[loc.string].label, fret: f };
+    }).sort((a, b) => order.indexOf(a.deg) - order.indexOf(b.deg));
+    let toneHtml = tones.map(t => `<div class="tone-chip"><span class="note">${t.note}</span><span class="deg">${DEGREE_DISPLAY[t.deg]} · ${t.string} str · fret ${t.fret}</span></div>`).join('');
+    if (extLoc) {
+      const f = R + extLoc.offset;
+      toneHtml += `<div class="tone-chip" style="border-style:dashed;"><span class="note">${noteAt(extLoc.string, f)}</span><span class="deg">♭13 (ext) · ${STRING_INFO[extLoc.string].label} str · fret ${f}</span></div>`;
+    }
+    toneList.innerHTML = toneHtml;
+
+    footnote.textContent = step.ext
+      ? `The chart adds a ♭13 on top of this dominant 7 for color — that’s the ♭6 from your original shape, shown here as the dashed "ext" note. You don’t need it to play the chord; it’s there if you want the extra color tone.`
+      : `This chord’s four notes are exactly the ${q.label} card from your fingering reference, just rooted here instead of on the low E string.`;
+  }
+
+  prevBtn.addEventListener('click', () => { if (stepIndex > 0) { stepIndex--; render(); } });
+  nextBtn.addEventListener('click', () => { if (stepIndex < STEPS.length - 1) { stepIndex++; render(); } });
+
+  let isDark = false;
+  themeToggle.addEventListener('click', () => {
+    isDark = !isDark;
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    themeToggle.textContent = isDark ? 'Light mode' : 'Dark mode';
+  });
+
+  buildSections();
+  render();
+})();
+</script>
+</body>
+</html>

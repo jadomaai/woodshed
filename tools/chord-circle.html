@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chord Circle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#15141f;
+    --panel:#1c1b28;
+    --panel-2:#221f30;
+    --border:#332f45;
+    --border-soft:#26233482;
+    --text:#eeeaf8;
+    --text-muted:#948fae;
+    --coral:#d85a30;
+    --gold:#c99a2e;
+    --teal:#4fb8a6;
+    --purple:#7f77dd;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1000px;
+    margin:0 auto;
+    padding:28px 20px 48px;
+  }
+  header{
+    margin-bottom:22px;
+  }
+  header h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:26px;
+    letter-spacing:-0.01em;
+    margin:0 0 4px;
+  }
+  header p{
+    margin:0;
+    color:var(--text-muted);
+    font-size:14px;
+    line-height:1.5;
+  }
+  .section-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+    margin:20px 0 8px;
+  }
+  .root-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .root-btn{
+    min-width:40px;
+    height:38px;
+    padding:0 8px;
+    border-radius:19px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+    transition:background .15s ease, border-color .15s ease, transform .1s ease;
+  }
+  .root-btn:hover{border-color:var(--coral);}
+  .root-btn:active{transform:scale(0.94);}
+  .root-btn.active{
+    background:var(--coral);
+    border-color:var(--coral);
+    color:#1c0f08;
+  }
+  .chord-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .chord-btn{
+    padding:8px 14px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--panel);
+    color:var(--text);
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:13px;
+    font-weight:500;
+    cursor:pointer;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .chord-btn:hover{border-color:var(--purple);}
+  .chord-btn.active{
+    background:var(--purple);
+    border-color:var(--purple);
+    color:#100e1c;
+    font-weight:600;
+  }
+  .panels{
+    display:flex;
+    gap:20px;
+    align-items:flex-start;
+  }
+  .panel-col{
+    flex:1 1 0;
+    min-width:0;
+  }
+  .panel-col .stage{margin-top:26px;}
+  .panel-col .section-label{margin-top:0;}
+  @media (max-width: 780px){
+    .panels{flex-direction:column;}
+    .panel-col{width:100%;}
+  }
+  .stage{
+    margin-top:26px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:8px 8px 4px;
+  }
+  .stage svg{
+    display:block;
+    width:100%;
+    height:auto;
+  }
+  .diagram-group{
+    opacity:0;
+    transform:scale(0.985);
+    transition:opacity .28s ease, transform .28s ease;
+  }
+  .diagram-group.show{
+    opacity:1;
+    transform:scale(1);
+  }
+  .readout{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:16px;
+  }
+  .chip{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2px;
+    padding:8px 12px;
+    border-radius:10px;
+    background:var(--panel-2);
+    border:1px solid var(--border-soft);
+    min-width:56px;
+  }
+  .chip .note{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:14px;
+    color:var(--coral);
+  }
+  .chip .degree{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:12px;
+    color:var(--teal);
+  }
+  .chip .interval{
+    font-size:10px;
+    color:var(--text-muted);
+    letter-spacing:0.03em;
+  }
+  .status-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:14px;
+    padding:12px 14px;
+    border-radius:10px;
+    background:var(--panel-2);
+    border:1px solid var(--border-soft);
+  }
+  .status-dot{
+    width:9px;
+    height:9px;
+    border-radius:50%;
+    flex-shrink:0;
+  }
+  .status-dot.symmetric{background:var(--gold);box-shadow:0 0 8px var(--gold);}
+  .status-dot.rooted{background:var(--coral);}
+  .status-text{
+    font-size:13px;
+    color:var(--text-muted);
+    line-height:1.4;
+  }
+  .status-text b{color:var(--text);font-weight:600;}
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:14px;
+    margin-top:14px;
+    font-size:11.5px;
+    color:var(--text-muted);
+  }
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{
+    width:10px;height:10px;border-radius:50%;display:inline-block;
+  }
+  .scale-note{
+    font-size:12.5px;
+    color:var(--text-muted);
+    line-height:1.5;
+    margin:10px 2px 0;
+  }
+  .scale-note b{color:var(--text);font-weight:600;}
+  .version-tag{
+    margin-top:28px;
+    padding-top:14px;
+    border-top:1px solid var(--border-soft);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.03em;
+    color:var(--text-muted);
+    text-align:center;
+  }
+  #tooltip{
+    position:fixed;
+    z-index:1000;
+    max-width:270px;
+    padding:10px 13px;
+    border-radius:8px;
+    background:#0d0c14;
+    border:1px solid var(--border);
+    color:var(--text);
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:12.5px;
+    line-height:1.45;
+    white-space:pre-line;
+    pointer-events:none;
+    opacity:0;
+    transform:translate(-50%,-100%);
+    transition:opacity .12s ease;
+    box-shadow:0 6px 18px rgba(0,0,0,0.35);
+  }
+  #tooltip .tip-title{
+    display:block;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    color:var(--coral);
+    margin-bottom:4px;
+  }
+  [data-tip]{cursor:pointer;}
+  @media (prefers-reduced-motion: reduce){
+    .diagram-group{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Chord Circle</h1>
+    <p>Pick a root and a chord quality. Note names are spelled properly — one letter per scale degree, with the correct sharp/flat/double-accidental worked out from the root, the same way real key signatures work (so Db and C# come out spelled differently, not just as the same "black key").</p>
+  </header>
+
+  <div class="section-label">Root</div>
+  <div class="root-row" id="rootRow"></div>
+
+  <div class="section-label">Triads</div>
+  <div class="chord-row" id="triadRow"></div>
+
+  <div class="section-label">7th chords</div>
+  <div class="chord-row" id="seventhRow"></div>
+
+  <div class="panels">
+    <div class="panel-col">
+      <div class="stage">
+        <svg id="svg" viewBox="0 0 500 540" role="img"><g class="diagram-group" id="dg"></g></svg>
+      </div>
+      <div class="readout" id="readout"></div>
+      <div class="status-row">
+        <div class="status-dot" id="statusDot"></div>
+        <div class="status-text" id="statusText"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--coral)"></i> chord tone</span>
+        <span><i style="background:var(--teal)"></i> scale degree</span>
+        <span><i style="background:var(--gold);border:1px solid var(--gold)"></i> semitones from root</span>
+        <span><i style="background:transparent;border:1px solid var(--purple)"></i> gap between tones</span>
+      </div>
+    </div>
+    <div class="panel-col">
+      <div class="section-label">Related scale</div>
+      <div class="stage">
+        <svg id="svg2" viewBox="0 0 460 460" role="img"><g class="diagram-group" id="dg2"></g></svg>
+      </div>
+      <p class="scale-note" id="scaleNote"></p>
+    </div>
+  </div>
+  <div class="version-tag">Chord Circle · v4 · 2026-08-15 · descriptive chord-button tooltips</div>
+</div>
+<div id="tooltip" role="tooltip"></div>
+
+<script>
+// ---------- Root note table: 17 entries, each with its letter + true pitch class ----------
+// This is what makes spelling correct: a root's LETTER determines which letter every
+// scale/chord degree gets, independent of its pitch class.
+const LETTERS = ['A','B','C','D','E','F','G'];
+const LETTER_PC = {A:9, B:11, C:0, D:2, E:4, F:5, G:7};
+
+const ROOT_TABLE = [
+  {name:'C',  letter:'C', pc:0},
+  {name:'C♯', letter:'C', pc:1},
+  {name:'D♭', letter:'D', pc:1},
+  {name:'D',  letter:'D', pc:2},
+  {name:'D♯', letter:'D', pc:3},
+  {name:'E♭', letter:'E', pc:3},
+  {name:'E',  letter:'E', pc:4},
+  {name:'F',  letter:'F', pc:5},
+  {name:'F♯', letter:'F', pc:6},
+  {name:'G♭', letter:'G', pc:6},
+  {name:'G',  letter:'G', pc:7},
+  {name:'G♯', letter:'G', pc:8},
+  {name:'A♭', letter:'A', pc:8},
+  {name:'A',  letter:'A', pc:9},
+  {name:'A♯', letter:'A', pc:10},
+  {name:'B♭', letter:'B', pc:10},
+  {name:'B',  letter:'B', pc:11},
+];
+function letterIndexOf(letter){ return LETTERS.indexOf(letter); }
+
+// Fallback chromatic names for scales that don't map cleanly to 7 letters (whole tone, octatonic)
+const FALLBACK_SHARP = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+const FALLBACK_FLAT  = ['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
+
+// Spell a note that is `offsetSemitones` above rootObj, landing on the `degreeNum`-th
+// letter above the root's letter (1 = root's own letter, 2 = next letter, etc).
+// If degreeNum is null, falls back to a plain chromatic name (no clean letter mapping exists).
+function spellNote(rootObj, offsetSemitones, degreeNum){
+  const targetPc = ((rootObj.pc + offsetSemitones) % 12 + 12) % 12;
+  if(degreeNum == null){
+    const useFlat = rootObj.name.includes('♭');
+    return (useFlat ? FALLBACK_FLAT : FALLBACK_SHARP)[targetPc];
+  }
+  const rootLetterIdx = letterIndexOf(rootObj.letter);
+  const letterIdx = (rootLetterIdx + (degreeNum - 1)) % 7;
+  const letter = LETTERS[letterIdx];
+  const npc = LETTER_PC[letter];
+  let diff = ((targetPc - npc) % 12 + 12) % 12;
+  if(diff > 6) diff -= 12;
+  const symbol = diff === 0 ? '' : (diff > 0 ? '♯'.repeat(diff) : '♭'.repeat(-diff));
+  return letter + symbol;
+}
+function degreeNumFromLabel(deg){
+  const m = deg.match(/\d+/);
+  return m ? parseInt(m[0], 10) : null;
+}
+
+const INT_NAMES = ['R','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'];
+
+// each chord tone: st = semitones from root, deg = scale-degree label as conventionally named
+const TRIADS = [
+  {id:'maj',  label:'Major',       suffix:'',      tones:[{st:0,deg:'1'},{st:4,deg:'3'},{st:7,deg:'5'}],
+    desc:"Major triad\nRoot, major 3rd, perfect 5th — the most stable, consonant triad in Western harmony."},
+  {id:'min',  label:'Minor',       suffix:'m',     tones:[{st:0,deg:'1'},{st:3,deg:'♭3'},{st:7,deg:'5'}],
+    desc:"Minor triad\nRoot, minor 3rd, perfect 5th — the major triad with its 3rd lowered a semitone, giving it a darker color."},
+  {id:'dim',  label:'Diminished',  suffix:'dim',   tones:[{st:0,deg:'1'},{st:3,deg:'♭3'},{st:6,deg:'♭5'}],
+    desc:"Diminished triad\nRoot, minor 3rd, diminished 5th — both the 3rd and 5th of a major triad are lowered a semitone. Unstable and dissonant; rarely used as a resting point."},
+  {id:'aug',  label:'Augmented',   suffix:'aug',   tones:[{st:0,deg:'1'},{st:4,deg:'3'},{st:8,deg:'♯5'}],
+    desc:"Augmented triad\nRoot, major 3rd, augmented 5th — two major 3rds stacked. Symmetric, so it has no single 'correct' root — any note could be heard as the root."},
+  {id:'sus2', label:'Sus2',        suffix:'sus2',  tones:[{st:0,deg:'1'},{st:2,deg:'2'},{st:7,deg:'5'}],
+    desc:"Suspended 2nd\nRoot, major 2nd, perfect 5th — the 3rd is replaced by the 2nd, removing the major/minor quality entirely. Open, unresolved sound."},
+  {id:'sus4', label:'Sus4',        suffix:'sus4',  tones:[{st:0,deg:'1'},{st:5,deg:'4'},{st:7,deg:'5'}],
+    desc:"Suspended 4th\nRoot, perfect 4th, perfect 5th — the 3rd is replaced by the 4th, which typically wants to resolve back down to the 3rd."},
+];
+const SEVENTHS = [
+  {id:'maj7',  label:'Major 7',      suffix:'maj7',  tones:[{st:0,deg:'1'},{st:4,deg:'3'},{st:7,deg:'5'},{st:11,deg:'7'}],
+    desc:"Major 7th\nRoot, major 3rd, perfect 5th, major 7th — a major triad plus a major 7th. Lush and dreamy rather than tense."},
+  {id:'dom7',  label:'Dominant 7',   suffix:'7',     tones:[{st:0,deg:'1'},{st:4,deg:'3'},{st:7,deg:'5'},{st:10,deg:'♭7'}],
+    desc:"Dominant 7th\nRoot, major 3rd, perfect 5th, minor 7th — a major triad plus a minor 7th. The engine of the V7–I cadence; wants to resolve."},
+  {id:'min7',  label:'Minor 7',      suffix:'m7',    tones:[{st:0,deg:'1'},{st:3,deg:'♭3'},{st:7,deg:'5'},{st:10,deg:'♭7'}],
+    desc:"Minor 7th\nRoot, minor 3rd, perfect 5th, minor 7th — a minor triad plus a minor 7th. Smoother and jazzier than a plain minor triad."},
+  {id:'m7b5',  label:'Half-dim 7',   suffix:'m7♭5',  tones:[{st:0,deg:'1'},{st:3,deg:'♭3'},{st:6,deg:'♭5'},{st:10,deg:'♭7'}],
+    desc:"Half-diminished 7th\nRoot, minor 3rd, diminished 5th, minor 7th — a diminished triad with a minor (not diminished) 7th on top. Common as the ii chord in minor-key jazz."},
+  {id:'dim7',  label:'Diminished 7', suffix:'dim7',  tones:[{st:0,deg:'1'},{st:3,deg:'♭3'},{st:6,deg:'♭5'},{st:9,deg:'♭♭7'}],
+    desc:"Diminished 7th\nRoot, minor 3rd, diminished 5th, diminished 7th — four notes each a minor 3rd apart. Fully symmetric, so it has no single 'correct' root — any of its four notes could be heard as the root."},
+  {id:'mmaj7', label:'Min-Maj 7',    suffix:'mMaj7', tones:[{st:0,deg:'1'},{st:3,deg:'♭3'},{st:7,deg:'5'},{st:11,deg:'7'}],
+    desc:"Minor-major 7th\nRoot, minor 3rd, perfect 5th, major 7th — a minor triad with a major 7th on top, giving it a tense, cinematic quality."},
+];
+const ALL_CHORDS = [...TRIADS, ...SEVENTHS];
+
+// scales: offsets from their own root, plus which letter-degree (1-7) each belongs to.
+// degrees:null means the scale doesn't map cleanly to 7 letters, so spelling falls back to chromatic.
+const SCALE_DEFS = {
+  'Ionian':                 {offsets:[0,2,4,5,7,9,11],       degrees:[1,2,3,4,5,6,7]},
+  'Dorian':                 {offsets:[0,2,3,5,7,9,10],       degrees:[1,2,3,4,5,6,7]},
+  'Phrygian':               {offsets:[0,1,3,5,7,8,10],       degrees:[1,2,3,4,5,6,7]},
+  'Lydian':                 {offsets:[0,2,4,6,7,9,11],       degrees:[1,2,3,4,5,6,7]},
+  'Mixolydian':             {offsets:[0,2,4,5,7,9,10],       degrees:[1,2,3,4,5,6,7]},
+  'Aeolian':                {offsets:[0,2,3,5,7,8,10],       degrees:[1,2,3,4,5,6,7]},
+  'Locrian':                {offsets:[0,1,3,5,6,8,10],       degrees:[1,2,3,4,5,6,7]},
+  'Melodic Minor':          {offsets:[0,2,3,5,7,9,11],       degrees:[1,2,3,4,5,6,7]},
+  'Whole Tone':             {offsets:[0,2,4,6,8,10],         degrees:null},
+  'Whole-Half Diminished':  {offsets:[0,2,3,5,6,8,9,11],     degrees:null},
+};
+const CHORD_SCALE_MAP = {
+  maj:'Ionian', min:'Aeolian', dim:'Locrian', aug:'Whole Tone', sus2:'Ionian', sus4:'Mixolydian',
+  maj7:'Ionian', dom7:'Mixolydian', min7:'Dorian', m7b5:'Locrian', dim7:'Whole-Half Diminished', mmaj7:'Melodic Minor'
+};
+
+let state = { root: ROOT_TABLE.findIndex(r=>r.name==='G'), chordId: 'dim7' }; // defaults to G dim7
+
+const cx = 250, cy = 270, R = 150;
+const innerR = 75, edgeR = 110, leaderEndR = 185, labelR = 205;
+
+function polar(r, angleDeg){
+  const rad = (Math.PI/180) * angleDeg;
+  return { x: cx + r*Math.cos(rad), y: cy + r*Math.sin(rad) };
+}
+function angleFor(offset){ return -90 + offset*30; }
+
+function buildButtons(){
+  const rootRow = document.getElementById('rootRow');
+  ROOT_TABLE.forEach((r,i)=>{
+    const b = document.createElement('button');
+    b.className = 'root-btn' + (i===state.root ? ' active' : '');
+    b.textContent = r.name;
+    b.dataset.root = i;
+    b.addEventListener('click', ()=>{ state.root = i; refreshActive(); render(); });
+    rootRow.appendChild(b);
+  });
+  const triadRow = document.getElementById('triadRow');
+  TRIADS.forEach(c=>{
+    const b = document.createElement('button');
+    b.className = 'chord-btn' + (c.id===state.chordId ? ' active' : '');
+    b.textContent = c.label;
+    b.dataset.chord = c.id;
+    b.setAttribute('data-tip', c.desc);
+    b.addEventListener('click', ()=>{ state.chordId = c.id; refreshActive(); render(); });
+    triadRow.appendChild(b);
+  });
+  const seventhRow = document.getElementById('seventhRow');
+  SEVENTHS.forEach(c=>{
+    const b = document.createElement('button');
+    b.className = 'chord-btn' + (c.id===state.chordId ? ' active' : '');
+    b.textContent = c.label;
+    b.dataset.chord = c.id;
+    b.setAttribute('data-tip', c.desc);
+    b.addEventListener('click', ()=>{ state.chordId = c.id; refreshActive(); render(); });
+    seventhRow.appendChild(b);
+  });
+}
+function refreshActive(){
+  document.querySelectorAll('.root-btn').forEach(b=>{
+    b.classList.toggle('active', Number(b.dataset.root)===state.root);
+  });
+  document.querySelectorAll('.chord-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.chord===state.chordId);
+  });
+}
+
+function svgEl(tag, attrs){
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for(const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+// ---------- Tooltips: hover shows the tip, click/tap toggles it (works everywhere) ----------
+const tooltipEl = document.getElementById('tooltip');
+let tipActiveEl = null;
+
+function showTip(target){
+  const text = target.getAttribute('data-tip');
+  if(!text) return;
+  const nl = text.indexOf('\n');
+  if(nl === -1){
+    tooltipEl.textContent = text;
+  } else {
+    const title = text.slice(0, nl);
+    const body = text.slice(nl + 1);
+    tooltipEl.innerHTML = '';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'tip-title';
+    titleEl.textContent = title;
+    tooltipEl.appendChild(titleEl);
+    tooltipEl.appendChild(document.createTextNode(body));
+  }
+  const r = target.getBoundingClientRect();
+  let left = r.left + r.width/2;
+  let top = r.top - 10;
+  left = Math.max(140, Math.min(window.innerWidth - 140, left));
+  tooltipEl.style.left = left + 'px';
+  tooltipEl.style.top = top + 'px';
+  tooltipEl.style.opacity = '1';
+  tipActiveEl = target;
+}
+function hideTip(){
+  tooltipEl.style.opacity = '0';
+  tipActiveEl = null;
+}
+
+document.addEventListener('mouseover', e=>{
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if(t) showTip(t);
+});
+document.addEventListener('mouseout', e=>{
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if(t && (!e.relatedTarget || !t.contains(e.relatedTarget))) hideTip();
+});
+// click works for both a mouse click and a touch tap, so this is the guaranteed fallback
+document.addEventListener('click', e=>{
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if(t){
+    if(tipActiveEl === t) hideTip();
+    else showTip(t);
+  } else {
+    hideTip();
+  }
+});
+
+function render(){
+  const chord = ALL_CHORDS.find(c=>c.id===state.chordId);
+  const tones = chord.tones;
+  const rootObj = ROOT_TABLE[state.root];
+  const dg = document.getElementById('dg');
+  dg.classList.remove('show');
+  dg.innerHTML = '';
+
+  for(let o=0; o<12; o++){
+    if(tones.some(t=>t.st===o)) continue;
+    const p = polar(R, angleFor(o));
+    dg.appendChild(svgEl('circle', {cx:p.x, cy:p.y, r:4, fill:'var(--text-muted)', opacity:0.45}));
+  }
+
+  const baseCircle = svgEl('circle', {cx, cy, r:R, fill:'none', stroke:'var(--border)', 'stroke-width':0.75});
+  dg.insertBefore(baseCircle, dg.firstChild);
+
+  const pts = tones.map(t => polar(R, angleFor(t.st)));
+  const d = 'M' + pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' L') + ' Z';
+  dg.appendChild(svgEl('path', {d, fill:'none', stroke:'var(--coral)', 'stroke-width':1.5, opacity:0.6}));
+
+  const gaps = [];
+  const toneNames = tones.map(t => spellNote(rootObj, t.st, degreeNumFromLabel(t.deg)));
+  for(let i=0;i<tones.length;i++){
+    const cur = tones[i].st;
+    const nextRaw = i===tones.length-1 ? tones[0].st+12 : tones[i+1].st;
+    const gap = nextRaw - cur;
+    gaps.push(gap);
+    const bisector = angleFor(cur) + (gap*30)/2;
+    const bp = polar(edgeR, bisector);
+    const nextName = i===tones.length-1 ? toneNames[0] : toneNames[i+1];
+    const tip = `Gap: ${gap} semitone${gap===1?'':'s'} (${INT_NAMES[gap]}) from ${toneNames[i]} to ${nextName}`;
+    dg.appendChild(svgEl('circle', {cx:bp.x, cy:bp.y, r:12, fill:'var(--panel-2)', stroke:'var(--purple)', 'stroke-width':1.3, 'data-tip':tip}));
+    const t = svgEl('text', {x:bp.x, y:bp.y+4, 'text-anchor':'middle', 'font-size':12, fill:'var(--purple)', 'font-family':'IBM Plex Mono, monospace', 'font-weight':600, 'data-tip':tip});
+    t.textContent = gap;
+    dg.appendChild(t);
+  }
+
+  tones.forEach(tn=>{
+    const outer = polar(R, angleFor(tn.st));
+    const inner = polar(innerR, angleFor(tn.st));
+    dg.appendChild(svgEl('line', {x1:inner.x, y1:inner.y, x2:outer.x, y2:outer.y, stroke:'var(--gold)', 'stroke-width':1, opacity:0.55}));
+  });
+  tones.forEach(tn=>{
+    const outer = polar(R, angleFor(tn.st));
+    const noteName = spellNote(rootObj, tn.st, degreeNumFromLabel(tn.deg));
+    const tip = `${noteName} — the ${tn.deg} of ${rootObj.name}${chord.suffix} (${INT_NAMES[tn.st]})`;
+    dg.appendChild(svgEl('circle', {cx:outer.x, cy:outer.y, r:7.5, fill:'var(--coral)', stroke:'#1c0f08', 'stroke-width':1, 'data-tip':tip}));
+  });
+  tones.forEach(tn=>{
+    const inner = polar(innerR, angleFor(tn.st));
+    const noteName = spellNote(rootObj, tn.st, degreeNumFromLabel(tn.deg));
+    const tip = `${noteName} is ${tn.st} semitone${tn.st===1?'':'s'} above the root ${rootObj.name} (${INT_NAMES[tn.st]})`;
+    dg.appendChild(svgEl('circle', {cx:inner.x, cy:inner.y, r:13, fill:'var(--panel-2)', stroke:'var(--gold)', 'stroke-width':1.4, 'data-tip':tip}));
+    const t = svgEl('text', {x:inner.x, y:inner.y+4, 'text-anchor':'middle', 'font-size':12, fill:'var(--gold)', 'font-family':'IBM Plex Mono, monospace', 'font-weight':700, 'data-tip':tip});
+    t.textContent = tn.st;
+    dg.appendChild(t);
+  });
+
+  tones.forEach(tn=>{
+    const outer = polar(R, angleFor(tn.st));
+    const lead = polar(leaderEndR, angleFor(tn.st));
+    const lab = polar(labelR, angleFor(tn.st));
+    dg.appendChild(svgEl('line', {x1:outer.x, y1:outer.y, x2:lead.x, y2:lead.y, stroke:'var(--border)', 'stroke-width':1}));
+    let anchor = 'middle';
+    if(lab.x < cx - 3) anchor = 'end';
+    else if(lab.x > cx + 3) anchor = 'start';
+    const t = svgEl('text', {x:lab.x, y:lab.y, 'text-anchor':anchor, 'font-family':'IBM Plex Mono, monospace'});
+    const noteName = spellNote(rootObj, tn.st, degreeNumFromLabel(tn.deg));
+    const tspan1 = svgEl('tspan', {x:lab.x, dy:0, 'font-size':16, fill:'var(--text)', 'font-weight':600});
+    tspan1.textContent = noteName;
+    const tspan2 = svgEl('tspan', {x:lab.x, dy:16, 'font-size':12, fill:'var(--teal)', 'font-weight':600});
+    tspan2.textContent = tn.deg;
+    t.appendChild(tspan1);
+    t.appendChild(tspan2);
+    dg.appendChild(t);
+  });
+
+  const title = svgEl('text', {x:cx, y:34, 'text-anchor':'middle', 'font-size':19, fill:'var(--text)', 'font-family':'Space Grotesk, sans-serif', 'font-weight':700});
+  title.textContent = `${rootObj.name}${chord.suffix}`;
+  dg.appendChild(title);
+  const sub = svgEl('text', {x:cx, y:54, 'text-anchor':'middle', 'font-size':12, fill:'var(--text-muted)', 'font-family':'IBM Plex Sans, sans-serif'});
+  sub.textContent = chord.label + ' — on the chromatic circle';
+  dg.appendChild(sub);
+
+  requestAnimationFrame(()=> dg.classList.add('show'));
+
+  const readout = document.getElementById('readout');
+  readout.innerHTML = '';
+  tones.forEach(tn=>{
+    const noteName = spellNote(rootObj, tn.st, degreeNumFromLabel(tn.deg));
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.innerHTML = `<div class="note">${noteName}</div><div class="degree">${tn.deg}</div><div class="interval">${INT_NAMES[tn.st]} · ${tn.st} st</div>`;
+    readout.appendChild(chip);
+  });
+
+  const allEqual = gaps.every(g => g === gaps[0]);
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  dot.className = 'status-dot ' + (allEqual ? 'symmetric' : 'rooted');
+  if(allEqual){
+    text.innerHTML = `<b>Symmetric</b> — every gap is ${gaps[0]} semitones, so this shape has no single fixed root. Any of its ${tones.length} notes could be read as the root.`;
+  } else {
+    text.innerHTML = `<b>Gaps: ${gaps.join(' + ')} semitones</b> — uneven spacing, so this chord has one true root: ${rootObj.name}.`;
+  }
+
+  renderScale(chord, tones, rootObj);
+}
+
+function renderScale(chord, tones, rootObj){
+  const scaleName = CHORD_SCALE_MAP[chord.id];
+  const scale = SCALE_DEFS[scaleName];
+  const scaleOffsets = scale.offsets;
+  const scaleDegrees = scale.degrees;
+  const chordSt = new Set(tones.map(t=>t.st));
+
+  const cx2 = 230, cy2 = 240, R2 = 130;
+  const labelR2 = 178, leaderEndR2 = 160;
+
+  const dg2 = document.getElementById('dg2');
+  dg2.classList.remove('show');
+  dg2.innerHTML = '';
+
+  function polar2(r, angleDeg){
+    const rad = (Math.PI/180) * angleDeg;
+    return { x: cx2 + r*Math.cos(rad), y: cy2 + r*Math.sin(rad) };
+  }
+
+  for(let o=0; o<12; o++){
+    if(scaleOffsets.includes(o)) continue;
+    const p = polar2(R2, angleFor(o));
+    dg2.appendChild(svgEl('circle', {cx:p.x, cy:p.y, r:4, fill:'var(--text-muted)', opacity:0.45}));
+  }
+
+  const baseCircle2 = svgEl('circle', {cx:cx2, cy:cy2, r:R2, fill:'none', stroke:'var(--border)', 'stroke-width':0.75});
+  dg2.appendChild(baseCircle2);
+
+  const pts2 = scaleOffsets.map(o => polar2(R2, angleFor(o)));
+  const d2 = 'M' + pts2.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' L') + ' Z';
+  dg2.appendChild(svgEl('path', {d:d2, fill:'none', stroke:'var(--teal)', 'stroke-width':1, opacity:0.45}));
+
+  scaleOffsets.forEach((o,idx)=>{
+    const p = polar2(R2, angleFor(o));
+    const isChordTone = chordSt.has(o);
+    const degreeNum = scaleDegrees ? scaleDegrees[idx] : null;
+    const noteName = spellNote(rootObj, o, degreeNum);
+    const degText = degreeNum ? `degree ${degreeNum}` : 'passing tone';
+    const tip = isChordTone
+      ? `${noteName} — ${degText} of ${scaleName}, and a chord tone of ${rootObj.name}${chord.suffix}`
+      : `${noteName} — ${degText} of ${scaleName} (not one of the chord tones)`;
+    dg2.appendChild(svgEl('circle', {cx:p.x, cy:p.y, r: isChordTone?7.5:6, fill: isChordTone?'var(--coral)':'var(--teal)', stroke:'#0d0c14', 'stroke-width':1, 'data-tip':tip}));
+    if(isChordTone){
+      dg2.appendChild(svgEl('circle', {cx:p.x, cy:p.y, r:11, fill:'none', stroke:'var(--coral)', 'stroke-width':1.2, opacity:0.6}));
+    }
+  });
+
+  scaleOffsets.forEach((o,idx)=>{
+    const outer = polar2(R2, angleFor(o));
+    const lead = polar2(leaderEndR2, angleFor(o));
+    const lab = polar2(labelR2, angleFor(o));
+    dg2.appendChild(svgEl('line', {x1:outer.x, y1:outer.y, x2:lead.x, y2:lead.y, stroke:'var(--border)', 'stroke-width':1}));
+    let anchor = 'middle';
+    if(lab.x < cx2 - 3) anchor = 'end';
+    else if(lab.x > cx2 + 3) anchor = 'start';
+    const degreeNum = scaleDegrees ? scaleDegrees[idx] : null;
+    const noteName = spellNote(rootObj, o, degreeNum);
+    const t = svgEl('text', {x:lab.x, y:lab.y+4, 'text-anchor':anchor, 'font-size':14, fill: chordSt.has(o)?'var(--coral)':'var(--text)', 'font-family':'IBM Plex Mono, monospace', 'font-weight':600});
+    t.textContent = noteName;
+    dg2.appendChild(t);
+  });
+
+  const title2 = svgEl('text', {x:cx2, y:32, 'text-anchor':'middle', 'font-size':18, fill:'var(--text)', 'font-family':'Space Grotesk, sans-serif', 'font-weight':700});
+  title2.textContent = `${rootObj.name} ${scaleName}`;
+  dg2.appendChild(title2);
+  const sub2 = svgEl('text', {x:cx2, y:51, 'text-anchor':'middle', 'font-size':11.5, fill:'var(--text-muted)', 'font-family':'IBM Plex Sans, sans-serif'});
+  sub2.textContent = 'commonly paired scale for this chord';
+  dg2.appendChild(sub2);
+
+  requestAnimationFrame(()=> dg2.classList.add('show'));
+
+  const fallbackNote = scaleDegrees ? '' : ' (this scale doesn\'t map to 7 letters, so notes use plain chromatic spelling)';
+  document.getElementById('scaleNote').innerHTML =
+    `<b>${rootObj.name} ${scaleName}</b> — formula ${scaleOffsets.join(', ')} semitones from the root${fallbackNote}. ` +
+    `Coral notes are shared with the ${rootObj.name}${chord.suffix} chord tones; teal notes are the scale's other passing tones. ` +
+    `This is the conventional pairing — other scales can fit the same chord depending on context.`;
+}
+
+buildButtons();
+render();
+</script>
+</body>
+</html>

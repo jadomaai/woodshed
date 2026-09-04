@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Woodshed</title>
+<meta name="description" content="Guitar fretboard and music theory practice tools, in one installable app.">
+<meta name="theme-color" content="#11141a">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-512.png" type="image/png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Woodshed">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #11141a;
+    --panel: #171b23;
+    --panel-2: #1e232d;
+    --border: rgba(255,255,255,0.09);
+    --text: #eef1f6;
+    --text-dim: #9aa2b1;
+    --text-faint: #6b7280;
+    --accent: #2fc9b4;
+    --accent-ink: #052321;
+    --accent-glow: rgba(47,201,180,0.35);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #f5f5f2;
+      --panel: #ffffff;
+      --panel-2: #f0f0ec;
+      --border: rgba(10,10,10,0.09);
+      --text: #14151a;
+      --text-dim: #5c6270;
+      --text-faint: #8a8f9c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Manrope, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+  .shell { display: flex; flex-direction: column; height: 100dvh; }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    padding: 0 10px 0 6px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    z-index: 30;
+  }
+  .icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 10px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text); cursor: pointer; font-size: 18px;
+    flex: none;
+  }
+  .icon-btn:hover { background: var(--panel-2); border-color: var(--border); }
+  .brand {
+    font-weight: 800; font-size: 15px; letter-spacing: 0.01em;
+    display: flex; align-items: center; gap: 8px; flex: none;
+  }
+  .brand .logo-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 8px var(--accent-glow);
+  }
+  .current-tool {
+    color: var(--text-dim); font-size: 13px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-left: 1px solid var(--border); padding-left: 12px; margin-left: 2px;
+    flex: 1; min-width: 0;
+  }
+  .install-btn {
+    flex: none;
+    background: var(--accent); color: var(--accent-ink);
+    border: none; border-radius: 8px; padding: 8px 12px;
+    font-weight: 800; font-size: 12.5px; cursor: pointer;
+  }
+  .install-btn[hidden] { display: none; }
+
+  /* ---------- Layout ---------- */
+  .body-row { flex: 1; display: flex; min-height: 0; position: relative; }
+
+  .sidebar {
+    flex: none;
+    width: 240px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 14px 10px 24px;
+  }
+  .nav-link {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 9px;
+    color: var(--text-dim); text-decoration: none;
+    font-size: 13.5px; font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .nav-link .em { font-size: 15px; flex: none; width: 18px; text-align: center; }
+  .nav-link:hover { background: var(--panel-2); color: var(--text); }
+  .nav-link.active {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .nav-home { margin-bottom: 12px; }
+  .nav-group { margin-top: 14px; }
+  .nav-group-title {
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--text-faint);
+    padding: 0 10px; margin-bottom: 4px;
+  }
+  .nav-subgroup {
+    margin-left: 8px; padding-left: 10px;
+    border-left: 1px solid var(--border);
+  }
+  .nav-subgroup-title {
+    font-size: 12px; font-weight: 700; color: var(--text-faint);
+    padding: 6px 10px 2px; display: flex; align-items: center; gap: 6px;
+  }
+
+  .backdrop {
+    display: none;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 20;
+  }
+
+  .content {
+    flex: 1; min-width: 0; position: relative;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+  }
+
+  .tool-frame {
+    flex: 1; width: 100%; height: 100%;
+    border: none; display: block; background: #fff;
+  }
+  .tool-frame[hidden] { display: none; }
+
+  /* ---------- Home view ---------- */
+  .home-view { flex: 1; overflow-y: auto; padding: clamp(20px, 4vw, 44px); }
+  .home-head { max-width: 720px; margin-bottom: 26px; }
+  .home-head h1 { font-size: clamp(22px, 3vw, 30px); margin: 0 0 8px; letter-spacing: -0.01em; }
+  .home-head p { color: var(--text-dim); font-size: 14.5px; line-height: 1.6; margin: 0; }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    max-width: 980px;
+  }
+  .tool-card {
+    display: block; text-decoration: none; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .tool-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .tool-card .tc-em { font-size: 24px; margin-bottom: 10px; display: block; }
+  .tool-card .tc-title { font-weight: 800; font-size: 15px; margin-bottom: 4px; }
+  .tool-card .tc-sub { color: var(--text-dim); font-size: 12.5px; line-height: 1.5; }
+  .section-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--text-faint); margin: 28px 0 12px; max-width: 980px;
+  }
+  .section-label:first-of-type { margin-top: 0; }
+
+  @media (max-width: 860px) {
+    .sidebar {
+      position: fixed; top: 56px; bottom: 0; left: 0;
+      transform: translateX(-100%);
+      transition: transform 0.18s ease;
+      z-index: 25; box-shadow: 12px 0 30px rgba(0,0,0,0.35);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .backdrop.open { display: block; }
+    .current-tool { display: none; }
+  }
+  @media (min-width: 861px) {
+    .icon-btn.menu-toggle { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <button class="icon-btn menu-toggle" id="menuBtn" aria-label="Toggle menu">&#9776;</button>
+    <div class="brand"><span class="logo-dot"></span>Woodshed</div>
+    <div class="current-tool" id="currentToolLabel">Home</div>
+    <button class="install-btn" id="installBtn" hidden>Install app</button>
+  </header>
+
+  <div class="body-row">
+    <nav class="sidebar" id="sidebar">
+      <a href="#home" class="nav-link nav-home" data-tool="home"><span class="em">&#127968;</span>Home</a>
+
+      <div class="nav-group">
+        <div class="nav-group-title">General</div>
+        <a href="#chord-circle" class="nav-link" data-tool="chord-circle"><span class="em">&#127925;</span>Chord Circle</a>
+        <a href="#interval-patterns" class="nav-link" data-tool="interval-patterns"><span class="em">&#127928;</span>Interval Patterns</a>
+        <a href="#fretwise" class="nav-link" data-tool="fretwise"><span class="em">&#127908;</span>Fretwise</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">Songs</div>
+        <div class="nav-subgroup">
+          <div class="nav-subgroup-title">&#127810; Autumn Leaves</div>
+          <a href="#autumn-shape-to-song" class="nav-link" data-tool="autumn-shape-to-song">Shape to Song</a>
+          <a href="#autumn-position-shapes" class="nav-link" data-tool="autumn-position-shapes">Position &mdash; All Shapes</a>
+          <a href="#autumn-position-estring" class="nav-link" data-tool="autumn-position-estring">Position &mdash; E-string Only</a>
+        </div>
+      </div>
+    </nav>
+
+    <div class="backdrop" id="backdrop"></div>
+
+    <main class="content">
+      <div class="home-view" id="homeView">
+        <div class="home-head">
+          <h1>Woodshed</h1>
+          <p>Fretboard and music theory practice tools, all in one place. Pick a tool below, or use the menu any time to jump between them. Install this to your home screen for one-tap, offline access.</p>
+        </div>
+
+        <div class="section-label">General</div>
+        <div class="card-grid">
+          <a class="tool-card" href="#chord-circle">
+            <span class="tc-em">&#127925;</span>
+            <div class="tc-title">Chord Circle</div>
+            <div class="tc-sub">Pick a root and a chord quality to see correctly spelled chord tones, intervals, and the related scale.</div>
+          </a>
+          <a class="tool-card" href="#interval-patterns">
+            <span class="tc-em">&#127928;</span>
+            <div class="tc-title">Interval Patterns</div>
+            <div class="tc-sub">A movable chord shape, re-rooted on every string, showing exactly what each root string gives you.</div>
+          </a>
+          <a class="tool-card" href="#fretwise">
+            <span class="tc-em">&#127908;</span>
+            <div class="tc-title">Fretwise</div>
+            <div class="tc-sub">Ear &amp; eye trainer &mdash; play or tap notes on the neck, tune your guitar, or find every occurrence of a note.</div>
+          </a>
+        </div>
+
+        <div class="section-label">Songs &rsaquo; Autumn Leaves</div>
+        <div class="card-grid">
+          <a class="tool-card" href="#autumn-shape-to-song">
+            <span class="tc-em">&#127810;</span>
+            <div class="tc-title">Shape to Song</div>
+            <div class="tc-sub">Step through the 32-bar form, bar by bar, seeing exactly where your fingers go for each chord.</div>
+          </a>
+          <a class="tool-card" href="#autumn-position-shapes">
+            <span class="tc-em">&#127810;</span>
+            <div class="tc-title">Position &mdash; All Shapes</div>
+            <div class="tc-sub">The whole tune's neck position over time, using the best available shape for each chord.</div>
+          </a>
+          <a class="tool-card" href="#autumn-position-estring">
+            <span class="tc-em">&#127810;</span>
+            <div class="tc-title">Position &mdash; E-string Only</div>
+            <div class="tc-sub">The same tune using one single shape rooted only on the low E string, sliding up and down the neck.</div>
+          </a>
+        </div>
+      </div>
+
+      <iframe class="tool-frame" id="toolFrame" title="Tool" hidden allow="microphone"></iframe>
+    </main>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var TOOLS = {
+    'chord-circle':            { file: 'tools/chord-circle.html',                 label: 'Chord Circle' },
+    'interval-patterns':       { file: 'tools/interval-patterns.html',            label: 'Interval Patterns' },
+    'fretwise':                { file: 'tools/fretwise.html',                     label: 'Fretwise' },
+    'autumn-shape-to-song':    { file: 'tools/autumn-leaves-shape-to-song.html',  label: 'Autumn Leaves — Shape to Song' },
+    'autumn-position-shapes':  { file: 'tools/autumn-leaves-position-shapes.html', label: 'Autumn Leaves — Position (All Shapes)' },
+    'autumn-position-estring': { file: 'tools/autumn-leaves-position-estring.html', label: 'Autumn Leaves — Position (E-string Only)' }
+  };
+
+  var homeView = document.getElementById('homeView');
+  var toolFrame = document.getElementById('toolFrame');
+  var currentToolLabel = document.getElementById('currentToolLabel');
+  var sidebar = document.getElementById('sidebar');
+  var backdrop = document.getElementById('backdrop');
+  var menuBtn = document.getElementById('menuBtn');
+  var loadedTools = {};
+
+  function closeMenu() {
+    sidebar.classList.remove('open');
+    backdrop.classList.remove('open');
+  }
+  function openMenu() {
+    sidebar.classList.add('open');
+    backdrop.classList.add('open');
+  }
+  menuBtn.addEventListener('click', function () {
+    sidebar.classList.contains('open') ? closeMenu() : openMenu();
+  });
+  backdrop.addEventListener('click', closeMenu);
+  sidebar.addEventListener('click', function (e) {
+    if (e.target.closest('a')) closeMenu();
+  });
+
+  function setActiveNav(key) {
+    var links = sidebar.querySelectorAll('.nav-link');
+    for (var i = 0; i < links.length; i++) {
+      links[i].classList.toggle('active', links[i].getAttribute('data-tool') === key);
+    }
+  }
+
+  function route() {
+    var hash = (location.hash || '#home').replace('#', '');
+    if (hash === 'home' || !TOOLS[hash]) {
+      homeView.style.display = 'block';
+      toolFrame.hidden = true;
+      currentToolLabel.textContent = 'Home';
+      setActiveNav('home');
+      return;
+    }
+    var tool = TOOLS[hash];
+    homeView.style.display = 'none';
+    toolFrame.hidden = false;
+    currentToolLabel.textContent = tool.label;
+    setActiveNav(hash);
+    // Only (re)load the iframe if we're switching to a different tool, so
+    // in-tool state (selected root, mode, etc.) survives nav clicks elsewhere.
+    if (toolFrame.dataset.current !== hash) {
+      toolFrame.src = tool.file;
+      toolFrame.dataset.current = hash;
+    }
+  }
+
+  window.addEventListener('hashchange', route);
+  route();
+
+  /* ---------------- Service worker ---------------- */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function () { /* offline caching just won't be available */ });
+    });
+  }
+
+  /* ---------------- Install prompt (Chrome/Edge/Android) ---------------- */
+  var deferredPrompt = null;
+  var installBtn = document.getElementById('installBtn');
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.hidden = false;
+  });
+  installBtn.addEventListener('click', function () {
+    if (!deferredPrompt) return;
+    installBtn.hidden = true;
+    deferredPrompt.prompt();
+    deferredPrompt = null;
+  });
+  window.addEventListener('appinstalled', function () {
+    installBtn.hidden = true;
+  });
+})();
+</script>
+</body>
+</html>

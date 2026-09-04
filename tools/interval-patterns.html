@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Movable Interval Patterns — All Six Strings</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-2:      #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-root:    #2a78d6;  /* slot 1 blue */
+    --series-natural: #eb6834;  /* slot 2 orange */
+    --series-flat:    #1baf7a;  /* slot 3 aqua */
+    --dot-ink:        #0b0b0b; /* fixed dark ink: contrast-checked >=4.4:1 against all three dot colors, light and dark */
+    --warn:           #fab219;
+    --warn-ink:       #4a3400;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --surface-2:      #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-root:    #3987e5;
+      --series-natural: #d95926;
+      --series-flat:    #199e70;
+      --dot-ink:        #0b0b0b;
+      --warn:           #fab219;
+      --warn-ink:       #4a3400;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --surface-2:      #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-root:    #3987e5;
+    --series-natural: #d95926;
+    --series-flat:    #199e70;
+    --dot-ink:        #0b0b0b;
+    --warn:           #fab219;
+    --warn-ink:       #4a3400;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--surface-2);
+    color: var(--text-primary);
+  }
+  .viz-root {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 28px 20px 40px;
+  }
+  h1 {
+    font-size: 20px;
+    margin: 0 0 4px;
+  }
+  h2 { font-size: 14px; margin: 0 0 10px; color: var(--text-primary); }
+  .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 20px;
+    max-width: 720px;
+  }
+  .theme-toggle {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+
+  .panel {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-end;
+  }
+  .control {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .control select, .control input[type=range] { font-family: inherit; }
+  select {
+    font-size: 14px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text-primary);
+  }
+  input[type=range] { width: 190px; accent-color: var(--series-root); }
+  .root-readout { font-size: 14px; color: var(--text-primary); font-weight: 600; }
+  .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .segmented button {
+    font-family: inherit; font-size: 12px; padding: 6px 12px; border: none;
+    background: var(--surface-1); color: var(--text-secondary); cursor: pointer;
+  }
+  .segmented button + button { border-left: 1px solid var(--border); }
+  .segmented button.active { background: var(--series-root); color: #fff; }
+  label.checkbox { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+  /* ---- String-picker row ---- */
+  .string-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+  .string-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    min-width: 74px; padding: 8px 10px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface-2); cursor: pointer;
+    font-family: inherit; color: var(--text-primary);
+  }
+  .string-btn .sb-label { font-weight: 700; font-size: 13px; }
+  .string-btn .sb-sub { font-size: 10px; color: var(--text-muted); }
+  .string-btn.active { border-color: var(--series-root); background: var(--surface-1); box-shadow: 0 0 0 1px var(--series-root); }
+  .string-btn.active .sb-sub { color: var(--series-root); font-weight: 600; }
+
+  /* ---- Comparison table ---- */
+  table.compare-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.compare-table th {
+    text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 600;
+    padding: 6px 8px; border-bottom: 1px solid var(--gridline);
+  }
+  table.compare-table td { padding: 8px; border-bottom: 1px solid var(--gridline); color: var(--text-secondary); vertical-align: top; }
+  table.compare-table tr.current-row td { background: color-mix(in srgb, var(--series-root) 8%, transparent); }
+  table.compare-table td:first-child { color: var(--text-primary); font-weight: 700; white-space: nowrap; }
+  .badge {
+    display: inline-block; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+    margin: 1px 3px 1px 0; border: 1px solid var(--border);
+  }
+  .badge.ok { background: color-mix(in srgb, var(--series-flat) 16%, transparent); color: var(--series-flat); border-color: color-mix(in srgb, var(--series-flat) 40%, transparent); }
+  .badge.no { background: transparent; color: var(--text-muted); text-decoration: line-through; opacity: .65; }
+
+  .board-wrap { overflow-x: auto; }
+  table.board { border-collapse: collapse; width: 100%; min-width: 520px; }
+  table.board th { font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 6px 4px 10px; text-align: center; }
+  table.board th.fret-head { border-bottom: 2px solid var(--baseline); }
+  table.board th.root-fret-head { color: var(--series-root); }
+  table.board td.string-label {
+    font-size: 13px; font-weight: 700; color: var(--text-secondary);
+    padding-right: 10px; text-align: right; white-space: nowrap;
+  }
+  table.board td.string-label.is-root { color: var(--series-root); }
+  table.board td.string-label .string-num { font-weight: 400; color: var(--text-muted); font-size: 11px; }
+  table.board td.cell { position: relative; text-align: center; padding: 4px; border-bottom: 1px solid var(--gridline); }
+  table.board tr.inactive-row td.cell { border-bottom: 1px dashed var(--gridline); }
+  .fret-line-wrap { position: relative; height: 56px; display: flex; align-items: center; justify-content: center; }
+  .string-line { position: absolute; left: -4px; right: -4px; top: 50%; height: 1px; background: var(--baseline); z-index: 0; }
+  tr.inactive-row .string-line { background: var(--gridline); }
+  .dot {
+    position: relative; z-index: 1; width: 46px; height: 46px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 12px; line-height: 1.15; cursor: pointer; border: 2px solid transparent; user-select: none;
+  }
+  .dot .note { font-weight: 700; font-size: 13px; }
+  .dot .deg { font-size: 10px; opacity: 0.9; }
+  .dot .tag {
+    position: absolute; top: -7px; right: -9px; font-size: 8px; font-weight: 800;
+    letter-spacing: .02em; white-space: nowrap; background: var(--surface-1);
+    border: 1px solid currentColor; border-radius: 6px; padding: 1px 4px; line-height: 1.3;
+  }
+  .dot.root { background: var(--series-root); color: var(--dot-ink); border-color: var(--series-root); }
+  .dot.natural { background: var(--series-natural); color: var(--dot-ink); }
+  .dot.flat { background: var(--series-flat); color: var(--dot-ink); }
+  .dot.avoid {
+    background: var(--surface-1); color: var(--text-muted);
+    border: 2px dashed var(--warn);
+  }
+  .dot.avoid .tag { color: var(--warn); }
+  .dot.dup { opacity: 0.55; }
+  .dot.dup .tag { color: var(--text-muted); }
+  .dot.inactive { background: transparent; color: var(--text-muted); border: 1px dashed var(--gridline); font-size: 11px; }
+  .dot.inactive .note { font-weight: 500; font-size: 12px; }
+  .dot.hidden-quiz .note, .dot.hidden-quiz .deg { visibility: hidden; }
+  .dot.hidden-quiz.revealed .note, .dot.hidden-quiz.revealed .deg { visibility: visible; }
+  .dot.hidden-quiz:not(.revealed)::after {
+    content: "?"; position: absolute; font-size: 16px; font-weight: 700; color: inherit; opacity: 0.85;
+  }
+  .dot.chord-hit { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--surface-1), 0 0 0 5px var(--text-primary); transform: scale(1.06); }
+  .dot.chord-dim { opacity: 0.22; filter: grayscale(45%); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px 18px; margin-top: 22px; font-size: 12px; color: var(--text-secondary); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .swatch.root { background: var(--series-root); }
+  .swatch.natural { background: var(--series-natural); }
+  .swatch.flat { background: var(--series-flat); }
+  .swatch.inactive { border: 1px dashed var(--gridline); }
+  .swatch.avoid { border: 2px dashed var(--warn); background: var(--surface-1); }
+  .swatch.dup { background: var(--text-muted); opacity: .55; }
+  .swatch.chord-hit-swatch { border: 2px solid var(--text-primary); box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 3px var(--text-primary); }
+  .swatch.chord-dim-swatch { background: var(--text-muted); opacity: 0.4; }
+
+  table.summary-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.summary-table th { text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--gridline); }
+  table.summary-table td { padding: 7px 8px; border-bottom: 1px solid var(--gridline); color: var(--text-secondary); }
+  table.summary-table td.deg-cell { font-weight: 700; }
+  table.summary-table tr td:first-child { color: var(--text-primary); font-weight: 600; }
+  table.summary-table tr.missing-row td { color: var(--text-muted); font-style: italic; }
+  table.summary-table tr.missing-row td.deg-cell { color: var(--warn-ink); }
+  :root[data-theme="dark"] table.summary-table tr.missing-row td.deg-cell,
+  .viz-root table.summary-table tr.missing-row td.deg-cell { color: var(--warn); }
+
+  .footnote { font-size: 12px; color: var(--text-muted); margin-top: 18px; line-height: 1.6; }
+
+  .chord-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 14px; }
+  .chord-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 12px 10px; cursor: pointer;
+    background: var(--surface-2); transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .chord-card:hover { border-color: var(--series-root); }
+  .chord-card.selected { border-color: var(--series-root); background: var(--surface-1); box-shadow: 0 0 0 1px var(--series-root); }
+  .chord-card.unavailable { cursor: not-allowed; opacity: 0.55; }
+  .chord-card.unavailable:hover { border-color: var(--border); }
+  .chord-card-title { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 2px; }
+  .chord-card-subtitle { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+  .chord-card-unavail-msg { font-size: 11.5px; color: var(--warn-ink); background: color-mix(in srgb, var(--warn) 16%, transparent); border-radius: 8px; padding: 8px 9px; line-height: 1.4; }
+  :root[data-theme="dark"] .chord-card-unavail-msg, .viz-root .chord-card-unavail-msg { color: var(--warn); }
+  table.mini-board { border-collapse: collapse; width: 100%; }
+  table.mini-board th { font-size: 9px; font-weight: 600; color: var(--text-muted); padding: 0 2px 4px; text-align: center; }
+  table.mini-board th.root-fret-head { color: var(--series-root); }
+  table.mini-board td.mini-string-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); padding-right: 4px; text-align: right; white-space: nowrap; width: 16px; }
+  table.mini-board td.mini-cell { text-align: center; padding: 2px; position: relative; }
+  .mini-line-wrap { position: relative; height: 28px; display: flex; align-items: center; justify-content: center; }
+  .mini-string-line { position: absolute; left: -3px; right: -3px; top: 50%; height: 1px; background: var(--gridline); }
+  .mini-dot { position: relative; z-index: 1; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; line-height: 1.1; }
+  .mini-dot.root { background: var(--series-root); color: var(--dot-ink); }
+  .mini-dot.natural { background: var(--series-natural); color: var(--dot-ink); }
+  .mini-dot.flat { background: var(--series-flat); color: var(--dot-ink); }
+  .mini-mute { font-size: 11px; color: var(--text-muted); text-align: center; }
+  .chord-card-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<div class="viz-root" data-palette="#2a78d6,#eb6834,#1baf7a" id="vizRoot">
+  <button class="theme-toggle" id="themeToggle" type="button">Dark mode</button>
+  <h1>Movable Interval Patterns — All Six Strings</h1>
+  <p class="subtitle">
+    The original shape roots on the low E string and reads its chord tones off the D, G and B strings.
+    That works so cleanly because of one quirk in standard tuning — the gap between the G and B strings
+    is a major 3rd, not a perfect 4th like every other pair. Root the same idea on a different string and
+    that quirk lands in a different place relative to the root, so the shape stays mostly usable but starts
+    leaking a note or two. Pick a string below to see exactly what each one gives you.
+  </p>
+
+  <div class="panel">
+    <h2>Root string</h2>
+    <div class="string-picker" id="stringPicker"></div>
+  </div>
+
+  <div class="panel">
+    <h2>How the six strings compare</h2>
+    <table class="compare-table" id="compareTable"></table>
+  </div>
+
+  <div class="panel controls">
+    <div class="control">
+      <span>Root note</span>
+      <select id="rootNoteSelect"></select>
+    </div>
+    <div class="control">
+      <span>Root fret: <span class="root-readout" id="rootFretReadout">5</span></span>
+      <input type="range" id="rootFretSlider" min="1" max="12" value="5" step="1">
+    </div>
+    <div class="control">
+      <span>Label content</span>
+      <div class="segmented" id="labelModeSeg">
+        <button data-mode="both" class="active">Note + degree</button>
+        <button data-mode="note">Note only</button>
+        <button data-mode="degree">Degree only</button>
+      </div>
+    </div>
+    <div class="control">
+      <span>Highlight a chord</span>
+      <select id="chordSelect"><option value="">None — show full pattern</option></select>
+    </div>
+    <div class="control">
+      <label class="checkbox"><input type="checkbox" id="showAllToggle"> Show unused strings/frets faintly</label>
+      <label class="checkbox"><input type="checkbox" id="quizToggle"> Quiz mode (click a dot to reveal)</label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="board-wrap">
+      <table class="board" id="board"></table>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="swatch root"></span> Root</div>
+      <div class="legend-item"><span class="swatch natural"></span> Natural degree</div>
+      <div class="legend-item"><span class="swatch flat"></span> Flattened degree</div>
+      <div class="legend-item"><span class="swatch dup"></span> Duplicate (already available elsewhere in this shape)</div>
+      <div class="legend-item"><span class="swatch avoid"></span> Avoid tone (♭9 or 11th — not one of the 10 target degrees)</div>
+      <div class="legend-item"><span class="swatch inactive"></span> Not part of this shape</div>
+      <div class="legend-item" id="legendChordHit" style="display:none;"><span class="swatch chord-hit-swatch"></span> Chord tone</div>
+      <div class="legend-item" id="legendChordDim" style="display:none;"><span class="swatch chord-dim-swatch"></span> Not in this chord</div>
+    </div>
+  </div>
+
+  <div class="panel" id="chordSummaryPanel" style="display:none;">
+    <h2 id="chordSummaryTitle">Chord tones</h2>
+    <table class="summary-table" id="chordSummaryTable">
+      <thead><tr><th>Degree</th><th>Note</th><th>String</th><th>Fret</th></tr></thead>
+      <tbody id="chordSummaryBody"></tbody>
+    </table>
+    <p class="chord-card-note" id="chordSummaryFootnote"></p>
+  </div>
+
+  <div class="panel">
+    <h2 id="summaryTitle">What this shape gives you, from the root you picked</h2>
+    <table class="summary-table" id="summaryTable">
+      <thead><tr><th>Degree</th><th>Note</th><th>String</th><th>Fret</th></tr></thead>
+      <tbody id="summaryBody"></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Fingering reference: six chord types from this shape</h2>
+    <p class="chord-card-subtitle" style="margin-bottom:10px;">Click a card to highlight it on the pattern above. ✕ = string not played. Grayed cards aren't reachable from the current root string.</p>
+    <div class="chord-grid" id="chordGrid"></div>
+  </div>
+
+  <p class="footnote" id="footnote"></p>
+</div>
+
+<script>
+(function () {
+  const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const DEGREES = ['R','b2','2','b3','3','4','b5','5','b6','6','b7','7'];
+  const DEGREE_DISPLAY = {R:'R', b2:'♭2', 2:'2', b3:'♭3', 3:'3', 4:'4', b5:'♭5', 5:'5', b6:'♭6', 6:'6', b7:'♭7', 7:'7'};
+  const CORE_DEGREES = ['R','2','b3','3','b5','5','b6','6','b7','7'];
+
+  // Standard tuning open-string pitch classes, keyed by string number (6=low E ... 1=high e)
+  const STRING_INFO = {
+    6: { label: 'E', sub: 'low', open: 4 },
+    5: { label: 'A', sub: '', open: 9 },
+    4: { label: 'D', sub: '', open: 2 },
+    3: { label: 'G', sub: '', open: 7 },
+    2: { label: 'B', sub: '', open: 11 },
+    1: { label: 'e', sub: 'high', open: 4 },
+  };
+  const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6]; // e (top) down to low E (bottom)
+  const ROOT_STRING_ORDER = [6, 5, 4, 3, 2, 1];
+
+  // ---- The six precomputed shapes -------------------------------------------------
+  // Verified by exhaustively computing, for every possible root string, which other
+  // strings land a "clean" target group (2/b3/3, b5/5/b6, or 6/b7/7) at same-fret
+  // offsets -1/0/+1, and picking the best available substitute where no string does.
+  // cls: 'target' = one of the 10 usable degrees: 'avoid' = b2 or 4 (skipped by design
+  // in the original shape); 'dup' = a usable degree already available elsewhere here.
+  function cell(deg, cls) { return { deg, cls }; }
+  const SHAPES = {
+    6: { helpers: [
+      { string: 3, kind: 'clean', cells: { '-1': cell('2','target'), '0': cell('b3','target'), '1': cell('3','target') } },
+      { string: 2, kind: 'clean', cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 4, kind: 'clean', cells: { '-1': cell('6','target'), '0': cell('b7','target'), '1': cell('7','target') } },
+    ] },
+    1: { helpers: [
+      { string: 3, kind: 'clean', cells: { '-1': cell('2','target'), '0': cell('b3','target'), '1': cell('3','target') } },
+      { string: 2, kind: 'clean', cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 4, kind: 'clean', cells: { '-1': cell('6','target'), '0': cell('b7','target'), '1': cell('7','target') } },
+    ] },
+    5: { helpers: [
+      { string: 6, kind: 'clean', cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 3, kind: 'clean', cells: { '-1': cell('6','target'), '0': cell('b7','target'), '1': cell('7','target') } },
+      { string: 2, kind: 'partial', missing: '3', cells: { '-1': cell('b2','avoid'), '0': cell('2','target'), '1': cell('b3','target') } },
+    ] },
+    4: { helpers: [
+      { string: 5, kind: 'clean', cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 6, kind: 'partial', missing: '3', cells: { '-1': cell('b2','avoid'), '0': cell('2','target'), '1': cell('b3','target') } },
+      { string: 2, kind: 'partial', missing: '7', cells: { '-1': cell('b6','dup'), '0': cell('6','target'), '1': cell('b7','target') } },
+    ] },
+    3: { helpers: [
+      { string: 4, kind: 'clean', cells: { '-1': cell('b5','target'), '0': cell('5','target'), '1': cell('b6','target') } },
+      { string: 2, kind: 'partial', missing: '2', cells: { '-1': cell('b3','target'), '0': cell('3','target'), '1': cell('4','avoid') } },
+      { string: 1, kind: 'partial', missing: '7', cells: { '-1': cell('b6','dup'), '0': cell('6','target'), '1': cell('b7','target') } },
+    ] },
+    2: { helpers: [
+      { string: 4, kind: 'clean', cells: { '-1': cell('2','target'), '0': cell('b3','target'), '1': cell('3','target') } },
+      { string: 5, kind: 'clean', cells: { '-1': cell('6','target'), '0': cell('b7','target'), '1': cell('7','target') } },
+      { string: 3, kind: 'partial', missing: 'b5', cells: { '-1': cell('5','target'), '0': cell('b6','target'), '1': cell('6','dup') } },
+    ] },
+  };
+
+  const CHORDS = [
+    { key: 'maj7', label: 'Major 7th', symbol: 'maj7', degrees: ['R','3','5','7'] },
+    { key: 'dom7', label: 'Dominant 7th', symbol: '7', degrees: ['R','3','5','b7'] },
+    { key: 'min7', label: 'Minor 7th', symbol: 'm7', degrees: ['R','b3','5','b7'] },
+    { key: 'halfdim7', label: 'Half-diminished 7th', symbol: 'm7♭5', degrees: ['R','b3','b5','b7'] },
+    { key: 'dim7', label: 'Diminished 7th', symbol: 'dim7', degrees: ['R','b3','b5','6'], overrideLabel: { '6': '𝄫7' } },
+    { key: 'min6', label: 'Minor 6th', symbol: 'm6', degrees: ['R','b3','5','6'] },
+  ];
+
+  const state = { rootString: 6, rootFret: 5, labelMode: 'both', showAll: false, quiz: false, chord: '' };
+
+  // ---- DOM refs ----
+  const stringPicker = document.getElementById('stringPicker');
+  const compareTable = document.getElementById('compareTable');
+  const rootNoteSelect = document.getElementById('rootNoteSelect');
+  const rootFretSlider = document.getElementById('rootFretSlider');
+  const rootFretReadout = document.getElementById('rootFretReadout');
+  const labelModeSeg = document.getElementById('labelModeSeg');
+  const showAllToggle = document.getElementById('showAllToggle');
+  const quizToggle = document.getElementById('quizToggle');
+  const chordSelect = document.getElementById('chordSelect');
+  const board = document.getElementById('board');
+  const summaryTitle = document.getElementById('summaryTitle');
+  const summaryBody = document.getElementById('summaryBody');
+  const themeToggle = document.getElementById('themeToggle');
+  const legendChordHit = document.getElementById('legendChordHit');
+  const legendChordDim = document.getElementById('legendChordDim');
+  const chordSummaryPanel = document.getElementById('chordSummaryPanel');
+  const chordSummaryTitle = document.getElementById('chordSummaryTitle');
+  const chordSummaryBody = document.getElementById('chordSummaryBody');
+  const chordSummaryFootnote = document.getElementById('chordSummaryFootnote');
+  const chordGrid = document.getElementById('chordGrid');
+  const footnote = document.getElementById('footnote');
+
+  NOTE_NAMES.forEach((n, i) => {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = n;
+    rootNoteSelect.appendChild(opt);
+  });
+  CHORDS.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.key; opt.textContent = c.label;
+    chordSelect.appendChild(opt);
+  });
+
+  function rootPitchFromFret(stringNum, fret) { return (STRING_INFO[stringNum].open + fret) % 12; }
+  function fretForRootNote(stringNum, pitchClass) {
+    for (let f = 1; f <= 12; f++) if (rootPitchFromFret(stringNum, f) === pitchClass) return f;
+    return 5;
+  }
+  function getChord(key) { return CHORDS.find(c => c.key === key) || null; }
+
+  // Build a degree -> {string, offset} map for the current shape (root string included).
+  function buildDegreeMap(rootString) {
+    const map = { R: { string: rootString, offset: 0 } };
+    const shape = SHAPES[rootString];
+    shape.helpers.forEach(h => {
+      [-1, 0, 1].forEach(off => {
+        const c = h.cells[off];
+        if (c.cls === 'target' && !(c.deg in map)) map[c.deg] = { string: h.string, offset: off };
+      });
+    });
+    shape.helpers.forEach(h => {
+      [-1, 0, 1].forEach(off => {
+        const c = h.cells[off];
+        if (c.cls === 'dup' && !(c.deg in map)) map[c.deg] = { string: h.string, offset: off };
+      });
+    });
+    return map;
+  }
+
+  function missingDegreesFor(rootString) {
+    const map = buildDegreeMap(rootString);
+    return CORE_DEGREES.filter(d => !(d in map));
+  }
+
+  function chordAvailability(rootString) {
+    const map = buildDegreeMap(rootString);
+    const out = {};
+    CHORDS.forEach(c => { out[c.key] = c.degrees.every(d => d in map); });
+    return out;
+  }
+
+  // ---- Build the string-root picker ----
+  function buildStringPicker() {
+    stringPicker.innerHTML = '';
+    ROOT_STRING_ORDER.forEach(sNum => {
+      const info = STRING_INFO[sNum];
+      const missing = missingDegreesFor(sNum);
+      const b = document.createElement('button');
+      b.className = 'string-btn' + (sNum === state.rootString ? ' active' : '');
+      b.dataset.string = sNum;
+      b.innerHTML = `<span class="sb-label">${info.label}${info.sub ? ' <span style="font-weight:400;color:var(--text-muted);font-size:10px;">(' + info.sub + ')</span>' : ''}</span>
+                     <span class="sb-sub">${missing.length === 0 ? '10/10' : (10 - missing.length) + '/10'}</span>`;
+      b.addEventListener('click', () => {
+        const pc = rootPitchFromFret(state.rootString, state.rootFret);
+        state.rootString = sNum;
+        state.rootFret = fretForRootNote(sNum, pc);
+        render();
+      });
+      stringPicker.appendChild(b);
+    });
+  }
+
+  // ---- Comparison table ----
+  function renderCompareTable() {
+    const rows = ROOT_STRING_ORDER.map(sNum => {
+      const info = STRING_INFO[sNum];
+      const missing = missingDegreesFor(sNum);
+      const avail = chordAvailability(sNum);
+      const chordBadges = CHORDS.map(c =>
+        `<span class="badge ${avail[c.key] ? 'ok' : 'no'}">${c.symbol}</span>`
+      ).join('');
+      const missTxt = missing.length ? missing.map(d => DEGREE_DISPLAY[d]).join(', ') : 'none — complete';
+      return `<tr class="${sNum === state.rootString ? 'current-row' : ''}">
+        <td>${info.label}${info.sub ? ' (' + info.sub + ')' : ''}</td>
+        <td>${10 - missing.length}/10<br><span style="font-size:11px;">missing: ${missTxt}</span></td>
+        <td>${chordBadges}</td>
+      </tr>`;
+    }).join('');
+    compareTable.innerHTML = `
+      <tr><th>String</th><th>Coverage</th><th>Chords reachable</th></tr>
+      ${rows}
+    `;
+  }
+
+  function render() {
+    rootFretReadout.textContent = state.rootFret;
+    rootFretSlider.value = state.rootFret;
+    rootNoteSelect.value = String(rootPitchFromFret(state.rootString, state.rootFret));
+
+    buildStringPicker();
+    renderCompareTable();
+
+    const R = state.rootFret;
+    const rootString = state.rootString;
+    const shape = SHAPES[rootString];
+    const rootPitch = rootPitchFromFret(rootString, R);
+    const windowFrets = [R - 1, R, R + 1, R + 2].filter(f => f >= 0);
+
+    // Build active-cell lookup: `${string}:${offset}` -> {deg, cls}
+    const activeCells = new Map();
+    activeCells.set(rootString + ':0', { deg: 'R', cls: 'root' });
+    shape.helpers.forEach(h => {
+      [-1, 0, 1].forEach(off => activeCells.set(h.string + ':' + off, h.cells[off]));
+    });
+    const helperStringSet = new Set(shape.helpers.map(h => h.string));
+
+    const activeChord = getChord(state.chord);
+    const degreeMap = buildDegreeMap(rootString);
+    const chordAvailableNow = activeChord ? activeChord.degrees.every(d => d in degreeMap) : false;
+    const chordToneAt = new Map(); // `${string}:${offset}` -> true, when highlighting a chord
+    if (activeChord && chordAvailableNow) {
+      activeChord.degrees.forEach(d => {
+        const loc = degreeMap[d];
+        chordToneAt.set(loc.string + ':' + loc.offset, d);
+      });
+    }
+
+    legendChordHit.style.display = (activeChord && chordAvailableNow) ? 'flex' : 'none';
+    legendChordDim.style.display = (activeChord && chordAvailableNow) ? 'flex' : 'none';
+
+    // ---- Header row ----
+    let html = '<tr><th></th>';
+    windowFrets.forEach(f => {
+      html += `<th class="fret-head ${f === R ? 'root-fret-head' : ''}">fret ${f}${f === 0 ? ' (open)' : ''}</th>`;
+    });
+    html += '</tr>';
+
+    DISPLAY_ORDER.forEach(sNum => {
+      const info = STRING_INFO[sNum];
+      const isRoot = sNum === rootString;
+      const isHelper = helperStringSet.has(sNum);
+      const rowActive = isRoot || isHelper;
+      html += `<tr class="${rowActive ? '' : 'inactive-row'}">`;
+      html += `<td class="string-label ${isRoot ? 'is-root' : ''}">${info.label} <span class="string-num">(${sNum})</span></td>`;
+      windowFrets.forEach(f => {
+        const offset = f - R;
+        const pitch = (info.open + f) % 12;
+        const noteName = NOTE_NAMES[pitch];
+        const key = sNum + ':' + offset;
+        const active = activeCells.get(key);
+
+        if (!active) {
+          if (!state.showAll) {
+            html += `<td class="cell"><div class="fret-line-wrap"><span class="string-line"></span></div></td>`;
+          } else {
+            html += `<td class="cell">
+              <div class="fret-line-wrap">
+                <span class="string-line"></span>
+                <div class="dot inactive"><span class="note">${noteName}</span></div>
+              </div>
+            </td>`;
+          }
+          return;
+        }
+
+        const semitoneFromRoot = ((pitch - rootPitch) % 12 + 12) % 12;
+        const degKey = DEGREES[semitoneFromRoot];
+        const displayDeg = (activeChord && chordToneAt.has(key) && activeChord.overrideLabel && activeChord.overrideLabel[degKey])
+          ? activeChord.overrideLabel[degKey] : DEGREE_DISPLAY[degKey];
+
+        let category;
+        if (active.cls === 'root') category = 'root';
+        else if (active.cls === 'avoid') category = 'avoid';
+        else if (active.cls === 'dup') category = 'dup';
+        else category = degKey.startsWith('b') ? 'flat' : 'natural';
+
+        let noteHtml = '', degHtml = '';
+        if (state.labelMode === 'both') {
+          noteHtml = `<span class="note">${noteName}</span>`;
+          degHtml = `<span class="deg">${displayDeg}</span>`;
+        } else if (state.labelMode === 'note') {
+          noteHtml = `<span class="note">${noteName}</span>`;
+        } else {
+          noteHtml = `<span class="note">${displayDeg}</span>`;
+        }
+        const tagHtml = active.cls === 'avoid' ? '<span class="tag">avoid</span>' : (active.cls === 'dup' ? '<span class="tag">dup</span>' : '');
+
+        const quizClass = state.quiz ? 'hidden-quiz' : '';
+        let chordClass = '';
+        if (activeChord && chordAvailableNow) chordClass = chordToneAt.has(key) ? 'chord-hit' : 'chord-dim';
+
+        html += `<td class="cell">
+          <div class="fret-line-wrap">
+            <span class="string-line"></span>
+            <div class="dot ${category} ${quizClass} ${chordClass}" data-fret="${f}" data-string="${sNum}" data-pattern="true">
+              ${noteHtml}${degHtml}${tagHtml}
+            </div>
+          </div>
+        </td>`;
+      });
+      html += '</tr>';
+    });
+
+    board.innerHTML = html;
+
+    board.querySelectorAll('.dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        const sNum = Number(dot.dataset.string);
+        const fret = Number(dot.dataset.fret);
+        if (state.quiz) { dot.classList.toggle('revealed'); return; }
+        if (sNum === rootString) {
+          state.rootFret = fret === 0 ? 12 : fret;
+          render();
+        }
+      });
+    });
+
+    renderSummary(R, rootPitch, rootString, degreeMap);
+    renderChordSummary(R, rootPitch, rootString, activeChord, degreeMap, chordAvailableNow);
+    renderChordGrid(R, rootPitch, rootString);
+    renderFootnote(rootString);
+
+    // sync chord dropdown option disabled-state to current root string
+    const avail = chordAvailability(rootString);
+    Array.from(chordSelect.options).forEach(opt => {
+      if (!opt.value) return;
+      opt.disabled = !avail[opt.value];
+      opt.textContent = avail[opt.value] ? CHORDS.find(c => c.key === opt.value).label
+        : CHORDS.find(c => c.key === opt.value).label + ' (unavailable here)';
+    });
+    if (state.chord && !avail[state.chord]) { /* keep selection but panel will show the unavailable message */ }
+    chordSelect.value = state.chord;
+  }
+
+  function noteAndDegreeFor(stringNum, fret, rootPitch) {
+    const info = STRING_INFO[stringNum];
+    const pitch = (info.open + fret) % 12;
+    const noteName = NOTE_NAMES[pitch];
+    const semitoneFromRoot = ((pitch - rootPitch) % 12 + 12) % 12;
+    const degKey = DEGREES[semitoneFromRoot];
+    return { info, noteName, degKey };
+  }
+
+  function renderSummary(R, rootPitch, rootString, degreeMap) {
+    summaryTitle.textContent = `What the ${STRING_INFO[rootString].label} string gives you, from the root you picked`;
+    const order = ['R', '2', 'b3', '3', 'b5', '5', 'b6', '6', 'b7', '7'];
+    let rowsHtml = '';
+    order.forEach(deg => {
+      const loc = degreeMap[deg];
+      if (loc) {
+        const f = R + loc.offset;
+        const { info, noteName } = noteAndDegreeFor(loc.string, f, rootPitch);
+        rowsHtml += `<tr>
+          <td class="deg-cell">${DEGREE_DISPLAY[deg]}</td>
+          <td>${noteName}</td>
+          <td>${info.label} (${loc.string})</td>
+          <td>${f}</td>
+        </tr>`;
+      } else {
+        rowsHtml += `<tr class="missing-row">
+          <td class="deg-cell">${DEGREE_DISPLAY[deg]}</td>
+          <td colspan="3">not reachable within this shape from the ${STRING_INFO[rootString].label} string</td>
+        </tr>`;
+      }
+    });
+    summaryBody.innerHTML = rowsHtml;
+  }
+
+  function renderChordSummary(R, rootPitch, rootString, activeChord, degreeMap, chordAvailableNow) {
+    if (!activeChord) { chordSummaryPanel.style.display = 'none'; return; }
+    chordSummaryPanel.style.display = '';
+    const rootNoteName = NOTE_NAMES[rootPitch];
+    chordSummaryTitle.textContent = `${rootNoteName}${activeChord.symbol} — ${activeChord.label} fingering (root on ${STRING_INFO[rootString].label} string)`;
+
+    if (!chordAvailableNow) {
+      chordSummaryBody.innerHTML = '';
+      chordSummaryFootnote.innerHTML = `This chord isn't reachable from the ${STRING_INFO[rootString].label} string in this shape — try rooting on the low E or high e string instead, where all ten degrees are available.`;
+      return;
+    }
+    const order = ['R', '2', 'b3', '3', '4', 'b5', '5', 'b6', '6', 'b7', '7'];
+    const rows = activeChord.degrees.map(deg => {
+      const loc = degreeMap[deg];
+      const f = R + loc.offset;
+      const { info, noteName } = noteAndDegreeFor(loc.string, f, rootPitch);
+      const label = (activeChord.overrideLabel && activeChord.overrideLabel[deg]) || DEGREE_DISPLAY[deg];
+      return { deg, label, noteName, string: `${info.label} (${loc.string})`, fret: f };
+    }).sort((a, b) => order.indexOf(a.deg) - order.indexOf(b.deg));
+
+    chordSummaryBody.innerHTML = rows.map(r => `
+      <tr><td class="deg-cell">${r.label}</td><td>${r.noteName}</td><td>${r.string}</td><td>${r.fret}</td></tr>
+    `).join('');
+
+    const hasOverride = activeChord.overrideLabel && Object.keys(activeChord.overrideLabel).length;
+    chordSummaryFootnote.textContent = hasOverride
+      ? `Note: this shape has no separate "double-flat" fret — the ${Object.values(activeChord.overrideLabel)[0]} is played on the same fret as, and is enharmonically identical to, the 6th.`
+      : '';
+  }
+
+  function renderChordGrid(R, rootPitch, rootString) {
+    const rootNoteName = NOTE_NAMES[rootPitch];
+    const shape = SHAPES[rootString];
+    const degreeMap = buildDegreeMap(rootString);
+    const miniFrets = [R - 1, R, R + 1].filter(f => f >= 0);
+    const activeStrings = new Set([rootString, ...shape.helpers.map(h => h.string)]);
+
+    chordGrid.innerHTML = CHORDS.map(chord => {
+      const available = chord.degrees.every(d => d in degreeMap);
+      const selectedClass = state.chord === chord.key ? 'selected' : '';
+      const availClass = available ? '' : 'unavailable';
+
+      if (!available) {
+        const missing = chord.degrees.filter(d => !(d in degreeMap)).map(d => DEGREE_DISPLAY[d]);
+        return `<div class="chord-card ${selectedClass} ${availClass}" data-chord="${chord.key}" data-unavailable="1">
+          <div class="chord-card-title">${rootNoteName}${chord.symbol}</div>
+          <div class="chord-card-subtitle">${chord.label}</div>
+          <div class="chord-card-unavail-msg">Not reachable from the ${STRING_INFO[rootString].label} string — this shape has no ${missing.join(' / ')} within reach here.</div>
+        </div>`;
+      }
+
+      const toneAt = new Map();
+      chord.degrees.forEach(d => { const l = degreeMap[d]; toneAt.set(l.string + ':' + l.offset, d); });
+
+      let rowsHtml = '<tr><th></th>';
+      miniFrets.forEach(f => { rowsHtml += `<th class="${f === R ? 'root-fret-head' : ''}">${f}</th>`; });
+      rowsHtml += '</tr>';
+
+      DISPLAY_ORDER.forEach(sNum => {
+        const info = STRING_INFO[sNum];
+        rowsHtml += `<tr><td class="mini-string-label">${info.label}</td>`;
+        if (!activeStrings.has(sNum)) {
+          rowsHtml += `<td class="mini-cell mini-mute" colspan="${miniFrets.length}">✕ not played</td>`;
+        } else {
+          miniFrets.forEach(f => {
+            const offset = f - R;
+            const deg = toneAt.get(sNum + ':' + offset);
+            if (!deg) {
+              rowsHtml += `<td class="mini-cell"><div class="mini-line-wrap"><span class="mini-string-line"></span></div></td>`;
+              return;
+            }
+            const { noteName } = noteAndDegreeFor(sNum, f, rootPitch);
+            const category = deg === 'R' ? 'root' : (deg.startsWith('b') ? 'flat' : 'natural');
+            const label = (chord.overrideLabel && chord.overrideLabel[deg]) || DEGREE_DISPLAY[deg];
+            rowsHtml += `<td class="mini-cell">
+              <div class="mini-line-wrap"><span class="mini-string-line"></span>
+                <div class="mini-dot ${category}">${noteName}<br>${label}</div>
+              </div>
+            </td>`;
+          });
+        }
+        rowsHtml += '</tr>';
+      });
+
+      return `<div class="chord-card ${selectedClass}" data-chord="${chord.key}">
+        <div class="chord-card-title">${rootNoteName}${chord.symbol}</div>
+        <div class="chord-card-subtitle">${chord.label}</div>
+        <table class="mini-board">${rowsHtml}</table>
+      </div>`;
+    }).join('');
+
+    chordGrid.querySelectorAll('.chord-card').forEach(card => {
+      if (card.dataset.unavailable) return;
+      card.addEventListener('click', () => {
+        const key = card.dataset.chord;
+        state.chord = state.chord === key ? '' : key;
+        render();
+      });
+    });
+  }
+
+  function renderFootnote(rootString) {
+    const missing = missingDegreesFor(rootString);
+    const label = STRING_INFO[rootString].label;
+    let msg;
+    if (missing.length === 0) {
+      msg = `Rooted on the ${label} string, every one of the ten usable degrees (everything except ♭9 and the 11th) falls cleanly on the D, G and B strings — three frets each, no overlaps, nothing missing. That's because the G–B string pair's major-3rd tuning gap sits exactly where this shape needs it.`;
+    } else {
+      msg = `Rooted on the ${label} string, this shape is missing ${missing.map(d => DEGREE_DISPLAY[d]).join(' and ')} — those notes simply don't fall within reach of the three neighbouring frets used here. Dashed amber rings mark ♭9/11th "avoid" notes that turn up incidentally; faded dots mark degrees you already have on another string. For the complete ten-degree picture, root on the low E or high e string instead.`;
+    }
+    footnote.textContent = msg;
+  }
+
+  rootNoteSelect.addEventListener('change', () => {
+    state.rootFret = fretForRootNote(state.rootString, Number(rootNoteSelect.value));
+    render();
+  });
+  rootFretSlider.addEventListener('input', () => {
+    state.rootFret = Number(rootFretSlider.value);
+    render();
+  });
+  labelModeSeg.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      labelModeSeg.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.labelMode = btn.dataset.mode;
+      render();
+    });
+  });
+  showAllToggle.addEventListener('change', () => { state.showAll = showAllToggle.checked; render(); });
+  quizToggle.addEventListener('change', () => { state.quiz = quizToggle.checked; render(); });
+  chordSelect.addEventListener('change', () => { state.chord = chordSelect.value; render(); });
+
+  let isDark = false;
+  themeToggle.addEventListener('click', () => {
+    isDark = !isDark;
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    themeToggle.textContent = isDark ? 'Light mode' : 'Dark mode';
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
