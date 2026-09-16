@@ -1,7 +1,7 @@
 // Woodshed service worker — caches the app shell + all tool pages so the app
 // works offline once it's been opened at least once. Bump CACHE_NAME whenever
 // any precached file changes, so returning visitors pick up the update.
-const CACHE_NAME = 'woodshed-v1';
+const CACHE_NAME = 'woodshed-v2';
 
 const PRECACHE_URLS = [
   './',
@@ -14,9 +14,11 @@ const PRECACHE_URLS = [
   './tools/chord-circle.html',
   './tools/interval-patterns.html',
   './tools/fretwise.html',
+  './tools/sight-reading.html',
   './tools/autumn-leaves-shape-to-song.html',
   './tools/autumn-leaves-position-shapes.html',
-  './tools/autumn-leaves-position-estring.html'
+  './tools/autumn-leaves-position-estring.html',
+  './lib/vexflow.min.js'
 ];
 
 self.addEventListener('install', (event) => {

@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sight Reading</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a1517;
+    --bg-grain-a: #0d1b1e;
+    --bg-grain-b: #071011;
+    --panel: #102529;
+    --panel-2: #163136;
+    --panel-border: rgba(196, 232, 224, 0.10);
+    --panel-border-strong: rgba(196, 232, 224, 0.18);
+    --wood: #123a41;
+    --wood-hi: #17454d;
+    --wood-lo: #0c2a2f;
+    --text: #eafaf5;
+    --text-dim: #9bc7bd;
+    --text-faint: #588a82;
+    --accent: #2fc9b4;
+    --accent-dim: #17685c;
+    --accent-glow: rgba(47, 201, 180, 0.35);
+    --on-accent: #052321;
+    --good: #82e08d;
+    --good-glow: rgba(130, 224, 141, 0.4);
+    --bad: #ff6f5e;
+    --bad-glow: rgba(255, 111, 94, 0.4);
+    --warn: #e8b23d;
+    --warn-glow: rgba(232, 178, 61, 0.4);
+    --miss: #8a96a8;
+    --paper: #f6f1e4;
+    --paper-ink: #16130d;
+    --font-display: 'Space Mono', 'JetBrains Mono', ui-monospace, monospace;
+    --font-body: 'Manrope', -apple-system, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      repeating-linear-gradient(115deg, var(--bg-grain-a) 0px, var(--bg-grain-a) 2px, var(--bg-grain-b) 2px, var(--bg-grain-b) 4px),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    padding: clamp(16px, 4vw, 40px);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  .page { max-width: 1080px; margin: 0 auto; }
+
+  header.top {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; margin-bottom: clamp(20px, 3vw, 32px);
+  }
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  .brand h1 {
+    font-family: var(--font-display); font-weight: 700;
+    font-size: clamp(22px, 3.4vw, 30px); letter-spacing: 0.01em; margin: 0; color: var(--text);
+  }
+  .brand .badge {
+    font-family: var(--font-display); font-size: 11px; letter-spacing: 0.08em; color: var(--accent);
+    border: 1px solid var(--accent-dim); background: rgba(47,201,180,0.08);
+    padding: 3px 8px; border-radius: 3px; text-transform: uppercase;
+  }
+  .top p.tagline { margin: 0; color: var(--text-dim); font-size: 14px; max-width: 46ch; }
+
+  .rack { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; }
+  @media (max-width: 800px) { .rack { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--panel-border); border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 30px -18px rgba(0,0,0,0.7);
+    padding: 18px;
+  }
+  .panel + .panel { margin-top: 18px; }
+  .panel h2 {
+    font-family: var(--font-display); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-faint); margin: 0 0 14px;
+  }
+
+  /* ---------- Status readout ---------- */
+  .readout {
+    display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center;
+    padding: 18px 18px 16px; border-radius: 12px;
+    background: radial-gradient(120% 160% at 50% -20%, rgba(47,201,180,0.08), transparent 60%), var(--panel);
+    border: 1px solid var(--panel-border); position: relative; overflow: hidden;
+  }
+  .readout-instruction { font-size: 13px; letter-spacing: 0.04em; color: var(--text-dim); text-transform: uppercase; font-weight: 600; }
+  .readout-note {
+    font-family: var(--font-display); font-weight: 700; font-size: clamp(38px, 8vw, 56px);
+    line-height: 1; letter-spacing: -0.01em; color: var(--text);
+    text-shadow: 0 0 30px var(--accent-glow); transition: color 160ms ease, text-shadow 160ms ease;
+  }
+  .readout-note.state-good { color: var(--good); text-shadow: 0 0 34px var(--good-glow); }
+  .readout-note.state-bad { color: var(--bad); text-shadow: 0 0 34px var(--bad-glow); }
+  .readout-sub { font-family: var(--font-display); font-size: 13px; color: var(--text-faint); min-height: 16px; }
+  .status-light {
+    position: absolute; top: 14px; right: 16px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--text-faint);
+  }
+  .status-light.active { background: var(--accent); box-shadow: 0 0 10px var(--accent-glow); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+  .beat-dots { display: flex; gap: 8px; justify-content: center; min-height: 12px; }
+  .beat-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--wood-lo); border: 1px solid var(--panel-border-strong); transition: background 80ms ease, transform 80ms ease; }
+  .beat-dot.on { background: var(--accent); transform: scale(1.2); box-shadow: 0 0 8px var(--accent-glow); }
+  .beat-dot.accent.on { background: var(--warn); box-shadow: 0 0 8px var(--warn-glow); }
+
+  /* ---------- Staff / notation ---------- */
+  .staff-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .staff-frame {
+    background: var(--paper); border-radius: 8px; padding: 14px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+    min-width: 320px;
+  }
+  .staff-frame.empty { display: flex; align-items: center; justify-content: center; min-height: 160px; }
+  .staff-empty-msg { color: rgba(22,19,13,0.45); font-size: 13.5px; font-weight: 600; }
+  svg.staff-svg { display: block; width: 100%; height: auto; }
+  .bar-cursor { fill: var(--accent); opacity: 0; transition: opacity 100ms ease; pointer-events: none; }
+  .bar-cursor.on { opacity: 0.14; }
+
+  .legend-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 11px; color: var(--text-faint); letter-spacing: 0.02em; }
+  .legend-row span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* ---------- Controls ---------- */
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label.field-label {
+    display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-faint); font-weight: 700; margin-bottom: 8px;
+  }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .segmented { display: flex; background: var(--wood-lo); border: 1px solid var(--panel-border-strong); border-radius: 8px; padding: 3px; gap: 3px; }
+  .segmented button {
+    flex: 1; background: transparent; border: none; color: var(--text-dim);
+    font-family: var(--font-body); font-weight: 700; font-size: 13px; padding: 8px 6px;
+    border-radius: 6px; cursor: pointer; transition: background 120ms ease, color 120ms ease;
+  }
+  .segmented button.active { background: var(--accent); color: var(--on-accent); }
+
+  select.select-input {
+    width: 100%; background: var(--wood-lo); color: var(--text);
+    border: 1px solid var(--panel-border-strong); border-radius: 8px; padding: 9px 10px;
+    font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
+  .range-row { display: flex; align-items: center; gap: 10px; }
+  input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .range-value { font-family: var(--font-display); font-size: 13px; color: var(--accent); min-width: 3.2em; text-align: right; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    padding: 12px 14px; border-radius: 9px; border: 1px solid var(--panel-border-strong);
+    background: var(--accent); color: var(--on-accent); font-family: var(--font-body);
+    font-weight: 800; font-size: 14px; cursor: pointer; transition: filter 120ms ease, transform 120ms ease, opacity 120ms ease;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: translateY(1px); }
+  .btn.secondary { background: var(--wood-lo); color: var(--text); }
+  .btn.stop { background: var(--bad); color: var(--on-accent); }
+  .btn[disabled] { opacity: 0.45; cursor: not-allowed; filter: none; transform: none; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { width: auto; flex: 1; }
+
+  .mic-error { margin-top: 10px; font-size: 12.5px; color: var(--bad); line-height: 1.5; display: none; }
+  .mic-error.show { display: block; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .stat { background: var(--wood-lo); border: 1px solid var(--panel-border-strong); border-radius: 9px; padding: 10px 8px; text-align: center; }
+  .stat .num { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .stat .lbl { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; }
+  .timing-note { font-size: 12px; color: var(--text-faint); text-align: center; margin-top: 10px; min-height: 15px; }
+
+  .help-note { font-size: 12px; color: var(--text-faint); line-height: 1.6; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--panel-border); }
+  .help-note strong { color: var(--text-dim); }
+
+  footer.foot { margin-top: 22px; text-align: center; font-size: 11px; color: var(--text-faint); letter-spacing: 0.03em; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="top">
+    <div class="brand">
+      <h1>Sight Reading</h1>
+      <span class="badge">Staff notation trainer</span>
+    </div>
+    <p class="tagline">Set a range, a key and a time signature, then read what's generated &mdash; with a metronome to keep time and an optional take-and-grade check.</p>
+  </header>
+
+  <div class="rack">
+    <div class="col-main">
+      <div class="panel readout-panel">
+        <div class="readout">
+          <div class="status-light" id="statusLight"></div>
+          <div class="readout-instruction" id="instruction">Set your parameters and generate a piece</div>
+          <div class="readout-note" id="bigReadout">&mdash;</div>
+          <div class="readout-sub" id="subReadout">&nbsp;</div>
+          <div class="beat-dots" id="beatDots"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:18px;">
+        <h2>Notation</h2>
+        <div class="staff-wrap">
+          <div class="staff-frame empty" id="staffFrame">
+            <span class="staff-empty-msg" id="staffEmptyMsg">Press Generate to create a piece</span>
+            <svg class="staff-svg" id="staffSvg" style="display:none;" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+        <div class="legend-row" id="legendRow">
+          <span><span class="swatch" style="background:var(--good);"></span> right note, on time</span>
+          <span><span class="swatch" style="background:var(--warn);"></span> right note, early/late</span>
+          <span><span class="swatch" style="background:var(--bad);"></span> wrong note</span>
+          <span><span class="swatch" style="background:var(--miss);"></span> missed</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-side">
+      <div class="panel">
+        <h2>Generate</h2>
+        <div class="field">
+          <label class="field-label" for="ledgerAbove">Ledger lines above staff: <span id="ledgerAboveVal">2</span></label>
+          <div class="range-row">
+            <input type="range" id="ledgerAbove" min="0" max="4" value="2" step="1">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="ledgerBelow">Ledger lines below staff: <span id="ledgerBelowVal">2</span></label>
+          <div class="range-row">
+            <input type="range" id="ledgerBelow" min="0" max="4" value="2" step="1">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="keySelect">Key</label>
+          <select class="select-input" id="keySelect"></select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="timeSigSelect">Time signature</label>
+          <select class="select-input" id="timeSigSelect">
+            <option value="4/4">4/4</option>
+            <option value="3/4">3/4</option>
+            <option value="2/4">2/4</option>
+            <option value="6/8">6/8</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label" for="barsRange">Bars: <span id="barsVal">8</span></label>
+          <div class="range-row">
+            <input type="range" id="barsRange" min="2" max="16" value="8" step="1">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Rhythm</label>
+          <div class="segmented" id="difficultySwitch">
+            <button type="button" data-difficulty="simple" class="active">Simple</button>
+            <button type="button" data-difficulty="moderate">Moderate</button>
+            <button type="button" data-difficulty="busy">Busy</button>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <button class="btn" id="generateBtn">Generate</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Playback</h2>
+        <div class="field">
+          <label class="field-label" for="tempoRange">Tempo: <span id="tempoVal">80</span> bpm</label>
+          <div class="range-row">
+            <input type="range" id="tempoRange" min="40" max="168" value="80" step="1">
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Count-in</label>
+          <div class="segmented" id="countInSwitch">
+            <button type="button" data-countin="on" class="active">One bar</button>
+            <button type="button" data-countin="off">Off</button>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <button class="btn secondary" id="playAlongBtn" disabled>Play along (metronome only)</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Record &amp; Grade</h2>
+        <div class="field" style="margin-bottom:0;">
+          <button class="btn" id="recordBtn" disabled>Start recording</button>
+          <div class="mic-error" id="micError"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Last Take</h2>
+        <div class="stats-row">
+          <div class="stat"><div class="num" id="statAccuracy">&mdash;</div><div class="lbl">Accuracy</div></div>
+          <div class="stat"><div class="num" id="statCorrect">&mdash;</div><div class="lbl">Correct</div></div>
+          <div class="stat"><div class="num" id="statIssues">&mdash;</div><div class="lbl">Issues</div></div>
+        </div>
+        <div class="timing-note" id="timingNote">&nbsp;</div>
+        <div class="help-note" id="helpNote">
+          <strong>Play along</strong> just keeps time with a click while you read &mdash; nothing is graded, no mic needed.
+          <br><br>
+          <strong>Record &amp; grade</strong> counts you in, clicks through the piece while it records you, then checks each note afterwards: it looks for a pluck near where that note should fall and checks the pitch. It only judges pitch and rough timing, not tone or which string you used.
+          <br><br>
+          This is a first cut at correctness-checking &mdash; live, note-by-note feedback while you play (rather than a report afterwards) is a possible future addition.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot">All generation, notation and pitch detection run locally in your browser. A take is buffered in memory only long enough to grade it, then discarded &mdash; nothing is saved or uploaded.</footer>
+</div>
+
+<script src="../lib/vexflow.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  if (!window.Vex || !window.Vex.Flow) {
+    document.getElementById('staffEmptyMsg').textContent = 'Notation engine failed to load — try reloading the app.';
+    return;
+  }
+  var VF = window.Vex.Flow;
+
+  /* ==================================================================
+     Pitch / staff-position theory
+     ================================================================== */
+
+  // Staff position 0 = bottom line of the treble staff (E4). Each step of
+  // +/-1 is one diatonic step (a line or a space), matching how notation
+  // actually works: a key signature changes whether a position sounds
+  // sharp/flat, never which line or space it sits on.
+  var LETTER_CYCLE = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  var NATURAL_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  var ANCHOR_POSITION = -2; // first ledger line below the staff = middle C (C4)
+
+  function positionToLetterOctave(pos) {
+    var steps = pos - ANCHOR_POSITION;
+    var i = 0; // index into LETTER_CYCLE, starts at 'C'
+    var octave = 4;
+    while (steps > 0) {
+      i = (i + 1) % 7;
+      if (LETTER_CYCLE[i] === 'C') octave++;
+      steps--;
+    }
+    while (steps < 0) {
+      if (LETTER_CYCLE[i] === 'C') octave--;
+      i = (i - 1 + 7) % 7;
+      steps++;
+    }
+    return { letter: LETTER_CYCLE[i], octave: octave };
+  }
+
+  function freqFromMidi(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+  function noteFrequency(letter, accidental, octave) {
+    var semitone = NATURAL_SEMITONE[letter] + (accidental === '#' ? 1 : accidental === 'b' ? -1 : 0);
+    var midi = (octave + 1) * 12 + semitone;
+    return freqFromMidi(midi);
+  }
+
+  /* ---------------- Key signatures (major keys) ---------------- */
+
+  var SHARP_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+  var FLAT_ORDER = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+
+  var KEYS = [
+    { name: 'C',  label: 'C major',        count: 0, type: null },
+    { name: 'G',  label: 'G major (1♯)',  count: 1, type: '#' },
+    { name: 'D',  label: 'D major (2♯)',  count: 2, type: '#' },
+    { name: 'A',  label: 'A major (3♯)',  count: 3, type: '#' },
+    { name: 'E',  label: 'E major (4♯)',  count: 4, type: '#' },
+    { name: 'B',  label: 'B major (5♯)',  count: 5, type: '#' },
+    { name: 'F',  label: 'F major (1♭)',  count: 1, type: 'b' },
+    { name: 'Bb', label: 'B♭ major (2♭)', count: 2, type: 'b' },
+    { name: 'Eb', label: 'E♭ major (3♭)', count: 3, type: 'b' },
+    { name: 'Ab', label: 'A♭ major (4♭)', count: 4, type: 'b' },
+    { name: 'Db', label: 'D♭ major (5♭)', count: 5, type: 'b' }
+  ];
+
+  function keySignatureMap(key) {
+    var map = {};
+    if (!key.type) return map;
+    var order = key.type === '#' ? SHARP_ORDER : FLAT_ORDER;
+    for (var i = 0; i < key.count; i++) map[order[i]] = key.type;
+    return map;
+  }
+
+  /* ==================================================================
+     Rhythm generation
+     ================================================================== */
+
+  // One tick = a sixteenth note. Quarter=4, eighth=2, dotted-quarter=6, half=8,
+  // dotted-half=12, whole=16. All palette values are even so a bar always
+  // fills exactly (a stray odd remainder can never occur).
+  var TICK_DURATION = { 16: 'w', 12: 'hd', 8: 'h', 6: 'qd', 4: 'q', 3: '8d', 2: '8', 1: '16' };
+  var DOTTED_TICKS = { 12: true, 6: true, 3: true };
+
+  var DIFFICULTY_PALETTES = {
+    simple:   [{ ticks: 16, w: 1 }, { ticks: 8, w: 4 }, { ticks: 4, w: 6 }],
+    moderate: [{ ticks: 8, w: 2 }, { ticks: 6, w: 2 }, { ticks: 4, w: 6 }, { ticks: 2, w: 4 }],
+    busy:     [{ ticks: 6, w: 2 }, { ticks: 4, w: 4 }, { ticks: 2, w: 7 }, { ticks: 8, w: 1 }]
+  };
+  var REST_PROB = { simple: 0.08, moderate: 0.12, busy: 0.15 };
+
+  function weightedPick(candidates) {
+    var totalW = 0;
+    for (var i = 0; i < candidates.length; i++) totalW += candidates[i].w;
+    var r = Math.random() * totalW;
+    for (var j = 0; j < candidates.length; j++) {
+      r -= candidates[j].w;
+      if (r <= 0) return candidates[j];
+    }
+    return candidates[candidates.length - 1];
+  }
+
+  function fillBar(totalTicks, difficulty) {
+    var palette = DIFFICULTY_PALETTES[difficulty];
+    var restProb = REST_PROB[difficulty];
+    var segments = [];
+    var remaining = totalTicks;
+    while (remaining > 0) {
+      var candidates = palette.filter(function (p) { return p.ticks <= remaining; });
+      if (candidates.length === 0) candidates = [{ ticks: Math.min(remaining, 1), w: 1 }];
+      var chosen = weightedPick(candidates);
+      var prevWasRest = segments.length > 0 && segments[segments.length - 1].isRest;
+      var isRest = !prevWasRest && Math.random() < restProb;
+      segments.push({ ticks: chosen.ticks, isRest: isRest });
+      remaining -= chosen.ticks;
+    }
+    return segments;
+  }
+
+  /* ---------------- Pitch selection (stepwise-weighted, diatonic) ---------------- */
+
+  function pickNextPosition(prevPos, minPos, maxPos) {
+    var candidates = [];
+    for (var p = minPos; p <= maxPos; p++) {
+      var dist = prevPos === null ? 0 : Math.abs(p - prevPos);
+      if (dist > 7) continue;
+      var weight;
+      if (prevPos === null) weight = 1;
+      else if (dist === 0) weight = 1.5;
+      else if (dist <= 2) weight = 6;
+      else if (dist <= 4) weight = 2;
+      else weight = 0.6;
+      candidates.push({ p: p, w: weight });
+    }
+    if (candidates.length === 0) return prevPos === null ? minPos : prevPos;
+    var totalW = candidates.reduce(function (s, c) { return s + c.w; }, 0);
+    var r = Math.random() * totalW;
+    for (var i = 0; i < candidates.length; i++) {
+      r -= candidates[i].w;
+      if (r <= 0) return candidates[i].p;
+    }
+    return candidates[candidates.length - 1].p;
+  }
+
+  /* ---------------- Piece generation ---------------- */
+
+  function timeSigParts(sig) {
+    var parts = sig.split('/');
+    return { numerator: parseInt(parts[0], 10), denominator: parseInt(parts[1], 10) };
+  }
+
+  function generatePiece(params) {
+    var key = params.key;
+    var accMap = keySignatureMap(key);
+    var ts = timeSigParts(params.timeSig);
+    var ticksPerBeatUnit = 16 / ts.denominator;
+    var barTicks = ts.numerator * ticksPerBeatUnit;
+    var pulseTicks = params.timeSig === '6/8' ? 6 : 4; // metronome click unit, in ticks
+    var minPos = 0 - 2 * params.ledgerBelow;
+    var maxPos = 8 + 2 * params.ledgerAbove;
+
+    var bars = [];
+    var gradable = []; // flat list of {tick (absolute, from piece start), freq, barIndex, segIndex}
+    var prevPos = null;
+    var absoluteTick = 0;
+
+    for (var b = 0; b < params.bars; b++) {
+      var segs = fillBar(barTicks, params.difficulty);
+      var barOut = [];
+      for (var s = 0; s < segs.length; s++) {
+        var seg = segs[s];
+        var out = { ticks: seg.ticks, isRest: seg.isRest, startTick: absoluteTick };
+        if (!seg.isRest) {
+          var pos = pickNextPosition(prevPos, minPos, maxPos);
+          prevPos = pos;
+          var lo = positionToLetterOctave(pos);
+          var accidental = accMap[lo.letter] || '';
+          out.letter = lo.letter;
+          out.octave = lo.octave;
+          out.accidental = accidental;
+          out.keyStr = lo.letter.toLowerCase() + accidental + '/' + lo.octave;
+          out.freq = noteFrequency(lo.letter, accidental, lo.octave);
+          gradable.push({ tick: absoluteTick, freq: out.freq, barIndex: b, segIndex: s });
+        }
+        barOut.push(out);
+        absoluteTick += seg.ticks;
+      }
+      bars.push(barOut);
+    }
+
+    return {
+      key: key, timeSig: params.timeSig, ts: ts, barTicks: barTicks, pulseTicks: pulseTicks,
+      bars: bars, gradable: gradable, totalTicks: absoluteTick,
+      ledgerAbove: params.ledgerAbove, ledgerBelow: params.ledgerBelow
+    };
+  }
+
+  /* ==================================================================
+     Notation rendering (VexFlow)
+     ================================================================== */
+
+  function barWidth(segCount, isFirst) {
+    var w = 60 + segCount * 42;
+    if (isFirst) w += 116;
+    return Math.max(w, isFirst ? 230 : 130);
+  }
+
+  // Renders the piece and returns { barBounds: [{x0,x1}], gradableNoteEls: [vfNote,...] }
+  // gradeResults, if given, is an array parallel to piece.gradable with a
+  // 'grade' field ('good' | 'timingOff' | 'wrongPitch' | 'missed') used to
+  // colour each notehead.
+  var GRADE_COLORS = { good: '#2f9e46', timingOff: '#b8860b', wrongPitch: '#c0392b', missed: '#9a9a9a' };
+
+  function renderPiece(piece, gradeResults) {
+    var svg = document.getElementById('staffSvg');
+    var frame = document.getElementById('staffFrame');
+    var emptyMsg = document.getElementById('staffEmptyMsg');
+    svg.innerHTML = '';
+
+    var topPad = 44 + piece.ledgerAbove * 11;
+    var bottomPad = 46 + piece.ledgerBelow * 11;
+    var staveH = 110;
+    var totalHeight = topPad + staveH + bottomPad;
+
+    var widths = piece.bars.map(function (bar, i) { return barWidth(bar.length, i === 0); });
+    var totalWidth = 20 + widths.reduce(function (s, w) { return s + w; }, 0);
+
+    svg.setAttribute('viewBox', '0 0 ' + totalWidth + ' ' + totalHeight);
+    svg.style.display = 'block';
+    emptyMsg.style.display = 'none';
+    frame.classList.remove('empty');
+
+    var renderer = new VF.Renderer(svg, VF.Renderer.Backends.SVG);
+    renderer.resize(totalWidth, totalHeight);
+    var context = renderer.getContext();
+
+    var gradeIdx = 0;
+    var x = 10;
+    var barBounds = [];
+    var cursorRects = [];
+
+    for (var b = 0; b < piece.bars.length; b++) {
+      var segs = piece.bars[b];
+      var w = widths[b];
+      var stave = new VF.Stave(x, topPad, w);
+      if (b === 0) {
+        stave.addClef('treble');
+        stave.addKeySignature(piece.key.name);
+        stave.addTimeSignature(piece.timeSig);
+      }
+      if (b === piece.bars.length - 1) stave.setEndBarType(VF.Barline.type.END);
+      stave.setContext(context).draw();
+
+      var vfNotes = [];
+      for (var s = 0; s < segs.length; s++) {
+        var seg = segs[s];
+        var duration = TICK_DURATION[seg.ticks] + (seg.isRest ? 'r' : '');
+        var vfNote;
+        if (seg.isRest) {
+          vfNote = new VF.StaveNote({ keys: ['b/4'], duration: duration, clef: 'treble' });
+        } else {
+          vfNote = new VF.StaveNote({ keys: [seg.keyStr], duration: duration, clef: 'treble' });
+          if (gradeResults) {
+            var g = gradeResults[gradeIdx];
+            if (g) vfNote.setStyle({ fillStyle: GRADE_COLORS[g.grade], strokeStyle: GRADE_COLORS[g.grade] });
+          }
+          gradeIdx++;
+        }
+        if (DOTTED_TICKS[seg.ticks]) VF.Dot.buildAndAttach([vfNote], { all: true });
+        vfNotes.push(vfNote);
+      }
+
+      var voice = new VF.Voice({ num_beats: piece.ts.numerator, beat_value: piece.ts.denominator });
+      voice.setStrict(false);
+      voice.addTickables(vfNotes);
+      VF.Accidental.applyAccidentals([voice], piece.key.name);
+
+      var innerWidth = w - (b === 0 ? 110 : 16);
+      new VF.Formatter().joinVoices([voice]).format([voice], innerWidth);
+      voice.draw(context, stave);
+
+      var beamOpts = piece.timeSig === '6/8' ? { groups: [new VF.Fraction(3, 8)] } : undefined;
+      var beams = VF.Beam.generateBeams(vfNotes, beamOpts);
+      beams.forEach(function (beam) { beam.setContext(context).draw(); });
+
+      barBounds.push({ x0: x, x1: x + w });
+
+      // Bar-highlight rect, inserted behind everything else so it doesn't occlude notes.
+      var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', x);
+      rect.setAttribute('y', topPad - 26);
+      rect.setAttribute('width', w);
+      rect.setAttribute('height', staveH + 26);
+      rect.setAttribute('class', 'bar-cursor');
+      svg.insertBefore(rect, svg.firstChild);
+      cursorRects.push(rect);
+
+      x += w;
+    }
+
+    return { barBounds: barBounds, cursorRects: cursorRects };
+  }
+
+  /* ==================================================================
+     Pitch detection (ported from Fretwise; ACF2+-style autocorrelation)
+     ================================================================== */
+
+  function autoCorrelate(buf, sampleRate) {
+    var SIZE = buf.length;
+    var rms = 0;
+    for (var i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / SIZE);
+    if (rms < 0.01) return -1;
+
+    var r1 = 0, r2 = SIZE - 1;
+    var thres = 0.2;
+    for (i = 0; i < SIZE / 2; i++) { if (Math.abs(buf[i]) < thres) { r1 = i; break; } }
+    for (i = 1; i < SIZE / 2; i++) { if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; } }
+    var trimmed = buf.slice(r1, r2);
+    var n = trimmed.length;
+    if (n < 8) return -1;
+
+    var c = new Array(n).fill(0);
+    for (var lag = 0; lag < n; lag++) {
+      var sum = 0;
+      for (var j = 0; j < n - lag; j++) sum += trimmed[j] * trimmed[j + lag];
+      c[lag] = sum;
+    }
+
+    var d = 0;
+    while (d < n - 1 && c[d] > c[d + 1]) d++;
+
+    var maxVal = -1, maxPos = -1;
+    for (i = d; i < n; i++) { if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; } }
+    var T0 = maxPos;
+
+    if (T0 > 0 && T0 < n - 1) {
+      var x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+      var a = (x1 + x3 - 2 * x2) / 2;
+      var bb = (x3 - x1) / 2;
+      if (a !== 0) T0 = T0 - bb / (2 * a);
+    }
+    if (T0 <= 0) return -1;
+    return sampleRate / T0;
+  }
+
+  function centsOff(freq, targetFreq) { return 1200 * Math.log2(freq / targetFreq); }
+
+  /* ==================================================================
+     Persisted settings (per-viewer convenience only)
+     ================================================================== */
+
+  var STORE_KEY = 'sightreading.settings.v1';
+  function loadSettings() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) { return null; }
+  }
+  function saveSettings() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        ledgerAbove: state.ledgerAbove, ledgerBelow: state.ledgerBelow, keyName: state.keyName,
+        timeSig: state.timeSig, bars: state.bars, difficulty: state.difficulty,
+        bpm: state.bpm, countIn: state.countIn
+      }));
+    } catch (e) { /* ignore */ }
+  }
+
+  /* ==================================================================
+     State
+     ================================================================== */
+
+  var state = {
+    ledgerAbove: 2, ledgerBelow: 2, keyName: 'C', timeSig: '4/4', bars: 8,
+    difficulty: 'simple', bpm: 80, countIn: true,
+    piece: null, renderInfo: null,
+    mode: null, // null | 'playalong' | 'record'
+    audioCtx: null, schedulerTimer: null, rafId: null,
+    lastGrade: null
+  };
+
+  var saved = loadSettings();
+  if (saved) {
+    if (saved.ledgerAbove >= 0 && saved.ledgerAbove <= 4) state.ledgerAbove = saved.ledgerAbove;
+    if (saved.ledgerBelow >= 0 && saved.ledgerBelow <= 4) state.ledgerBelow = saved.ledgerBelow;
+    if (KEYS.some(function (k) { return k.name === saved.keyName; })) state.keyName = saved.keyName;
+    if (['4/4', '3/4', '2/4', '6/8'].indexOf(saved.timeSig) !== -1) state.timeSig = saved.timeSig;
+    if (saved.bars >= 2 && saved.bars <= 16) state.bars = saved.bars;
+    if (['simple', 'moderate', 'busy'].indexOf(saved.difficulty) !== -1) state.difficulty = saved.difficulty;
+    if (saved.bpm >= 40 && saved.bpm <= 168) state.bpm = saved.bpm;
+    if (typeof saved.countIn === 'boolean') state.countIn = saved.countIn;
+  }
+
+  function currentKey() {
+    for (var i = 0; i < KEYS.length; i++) if (KEYS[i].name === state.keyName) return KEYS[i];
+    return KEYS[0];
+  }
+
+  /* ---------------- DOM refs ---------------- */
+
+  var el = {
+    instruction: document.getElementById('instruction'),
+    bigReadout: document.getElementById('bigReadout'),
+    subReadout: document.getElementById('subReadout'),
+    statusLight: document.getElementById('statusLight'),
+    beatDots: document.getElementById('beatDots'),
+    ledgerAbove: document.getElementById('ledgerAbove'),
+    ledgerAboveVal: document.getElementById('ledgerAboveVal'),
+    ledgerBelow: document.getElementById('ledgerBelow'),
+    ledgerBelowVal: document.getElementById('ledgerBelowVal'),
+    keySelect: document.getElementById('keySelect'),
+    timeSigSelect: document.getElementById('timeSigSelect'),
+    barsRange: document.getElementById('barsRange'),
+    barsVal: document.getElementById('barsVal'),
+    difficultySwitch: document.getElementById('difficultySwitch'),
+    generateBtn: document.getElementById('generateBtn'),
+    tempoRange: document.getElementById('tempoRange'),
+    tempoVal: document.getElementById('tempoVal'),
+    countInSwitch: document.getElementById('countInSwitch'),
+    playAlongBtn: document.getElementById('playAlongBtn'),
+    recordBtn: document.getElementById('recordBtn'),
+    micError: document.getElementById('micError'),
+    statAccuracy: document.getElementById('statAccuracy'),
+    statCorrect: document.getElementById('statCorrect'),
+    statIssues: document.getElementById('statIssues'),
+    timingNote: document.getElementById('timingNote')
+  };
+
+  function populateKeySelect() {
+    el.keySelect.innerHTML = '';
+    KEYS.forEach(function (k) {
+      var opt = document.createElement('option');
+      opt.value = k.name;
+      opt.textContent = k.label;
+      el.keySelect.appendChild(opt);
+    });
+    el.keySelect.value = state.keyName;
+  }
+
+  /* ==================================================================
+     Generate button
+     ================================================================== */
+
+  function doGenerate() {
+    stopAll();
+    var params = {
+      ledgerAbove: state.ledgerAbove, ledgerBelow: state.ledgerBelow,
+      key: currentKey(), timeSig: state.timeSig, bars: state.bars, difficulty: state.difficulty
+    };
+    state.piece = generatePiece(params);
+    state.renderInfo = renderPiece(state.piece);
+    state.lastGrade = null;
+    resetStats();
+    el.instruction.textContent = 'Ready';
+    el.bigReadout.textContent = state.bars + ' bar' + (state.bars === 1 ? '' : 's');
+    el.bigReadout.className = 'readout-note';
+    el.subReadout.textContent = currentKey().label + ' · ' + state.timeSig + ' · ' + state.bpm + ' bpm';
+    el.playAlongBtn.disabled = false;
+    el.recordBtn.disabled = false;
+    renderBeatDots();
+  }
+
+  function renderBeatDots() {
+    el.beatDots.innerHTML = '';
+    if (!state.piece) return;
+    var clicksPerBar = state.piece.barTicks / state.piece.pulseTicks;
+    for (var i = 0; i < clicksPerBar; i++) {
+      var dot = document.createElement('div');
+      dot.className = 'beat-dot' + (i === 0 ? ' accent' : '');
+      el.beatDots.appendChild(dot);
+    }
+  }
+
+  /* ==================================================================
+     Timeline: convert a piece + bpm into absolute audioCtx times
+     ================================================================== */
+
+  // now/leadIn define when the piece itself starts: t0 = now + leadIn, plus
+  // one extra bar of count-in time *before* t0 when countIn is on. Count-in
+  // clicks are placed before t0 counting backwards, so t0 must already
+  // include enough headroom for them — otherwise a count-in click could be
+  // scheduled at a negative/past audioCtx time (AudioParam scheduling throws
+  // in that case).
+  function buildTimeline(piece, bpm, countIn, now, leadIn) {
+    var secondsPerPulse = 60 / bpm;
+    var secondsPerTick = secondsPerPulse / piece.pulseTicks;
+    var clicksPerBar = piece.barTicks / piece.pulseTicks;
+    var countInDuration = countIn ? clicksPerBar * secondsPerPulse : 0;
+    var t0 = now + leadIn + countInDuration;
+
+    var clicks = [];
+    if (countIn) {
+      for (var i = 0; i < clicksPerBar; i++) {
+        clicks.push({ time: t0 - (clicksPerBar - i) * secondsPerPulse, accent: i === 0 });
+      }
+    }
+    var totalClicks = piece.totalTicks / piece.pulseTicks;
+    for (var c = 0; c < totalClicks; c++) {
+      clicks.push({ time: t0 + c * secondsPerPulse, accent: (c % clicksPerBar) === 0 });
+    }
+
+    var notes = piece.gradable.map(function (g) {
+      return { time: t0 + g.tick * secondsPerTick, freq: g.freq, barIndex: g.barIndex, segIndex: g.segIndex };
+    });
+
+    var pieceEndTime = t0 + piece.totalTicks * secondsPerTick;
+    return { clicks: clicks, notes: notes, secondsPerTick: secondsPerTick, pieceStart: t0, pieceEnd: pieceEndTime };
+  }
+
+  /* ==================================================================
+     Metronome click synthesis + lookahead scheduler
+     ================================================================== */
+
+  function playClick(ctx, time, accent) {
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = accent ? 1500 : 1000;
+    gain.gain.setValueAtTime(0.0001, time);
+    gain.gain.exponentialRampToValueAtTime(accent ? 0.35 : 0.22, time + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.03);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(time);
+    osc.stop(time + 0.035);
+  }
+
+  // Runs a finite, precomputed timeline (count-in + piece) with a lookahead
+  // scheduler for audio-accurate clicks, plus a rAF loop for visual sync
+  // (bar highlight, beat dots, live status) and an optional per-note
+  // callback used by the recorder to know when to stop.
+  function runTimeline(timeline, opts) {
+    opts = opts || {};
+    var ctx = state.audioCtx;
+    var scheduleAhead = 0.12;
+    var lookaheadMs = 25;
+    var nextClickIdx = 0;
+
+    function scheduleLoop() {
+      var now = ctx.currentTime;
+      while (nextClickIdx < timeline.clicks.length && timeline.clicks[nextClickIdx].time < now + scheduleAhead) {
+        playClick(ctx, timeline.clicks[nextClickIdx].time, timeline.clicks[nextClickIdx].accent);
+        nextClickIdx++;
+      }
+      if (nextClickIdx >= timeline.clicks.length && now > timeline.pieceEnd + 0.6) {
+        finish();
+        return;
+      }
+      state.schedulerTimer = setTimeout(scheduleLoop, lookaheadMs);
+    }
+
+    var lastDotIdx = -1;
+    var lastBarIdx = -1;
+    function visualLoop() {
+      var now = ctx.currentTime;
+
+      var clicksPerBar = state.piece.barTicks / state.piece.pulseTicks;
+      var dotIdx = -1;
+      for (var i = 0; i < timeline.clicks.length; i++) {
+        if (timeline.clicks[i].time <= now) dotIdx = i; else break;
+      }
+      if (dotIdx !== lastDotIdx) {
+        lastDotIdx = dotIdx;
+        var dots = el.beatDots.querySelectorAll('.beat-dot');
+        var withinBar = dotIdx >= 0 ? ((dotIdx % clicksPerBar) + clicksPerBar) % clicksPerBar : -1;
+        Array.prototype.forEach.call(dots, function (d, di) { d.classList.toggle('on', di === withinBar); });
+      }
+
+      if (now >= timeline.pieceStart) {
+        var barIdx = -1;
+        for (var bIdx = 0; bIdx < state.renderInfo.barBounds.length; bIdx++) {
+          var barStartTime = timeline.pieceStart + firstTickOfBar(state.piece, bIdx) * timeline.secondsPerTick;
+          if (barStartTime <= now) barIdx = bIdx; else break;
+        }
+        if (barIdx !== lastBarIdx) {
+          lastBarIdx = barIdx;
+          state.renderInfo.cursorRects.forEach(function (r, ri) { r.classList.toggle('on', ri === barIdx); });
+          if (barIdx >= 0) {
+            el.bigReadout.textContent = (barIdx + 1) + ' / ' + state.piece.bars.length;
+            el.subReadout.textContent = 'Bar ' + (barIdx + 1);
+          }
+        }
+        el.instruction.textContent = opts.recording ? 'Recording…' : 'Playing…';
+      } else {
+        el.instruction.textContent = 'Count-in…';
+      }
+
+      if (opts.onFrame) opts.onFrame(now);
+
+      if (now < timeline.pieceEnd + 0.6) {
+        state.rafId = requestAnimationFrame(visualLoop);
+      }
+    }
+
+    function finish() {
+      if (opts.onDone) opts.onDone();
+    }
+
+    scheduleLoop();
+    visualLoop();
+  }
+
+  function firstTickOfBar(piece, barIndex) {
+    var t = 0;
+    for (var i = 0; i < barIndex; i++) {
+      for (var s = 0; s < piece.bars[i].length; s++) t += piece.bars[i][s].ticks;
+    }
+    return t;
+  }
+
+  /* ==================================================================
+     Play along (metronome only, no mic)
+     ================================================================== */
+
+  function startPlayAlong() {
+    if (!state.piece) return;
+    state.mode = 'playalong';
+    var AC = window.AudioContext || window.webkitAudioContext;
+    state.audioCtx = new AC();
+    var timeline = buildTimeline(state.piece, state.bpm, state.countIn, state.audioCtx.currentTime, 0.25);
+    el.playAlongBtn.textContent = 'Stop';
+    el.playAlongBtn.classList.add('stop');
+    el.recordBtn.disabled = true;
+    el.statusLight.classList.add('active');
+    runTimeline(timeline, {
+      recording: false,
+      onDone: function () { stopAll(); }
+    });
+  }
+
+  /* ==================================================================
+     Record & grade
+     ================================================================== */
+
+  function isSecureContextOk() { return window.isSecureContext !== false; }
+
+  function startRecording() {
+    if (!state.piece) return;
+    el.micError.classList.remove('show');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      el.micError.textContent = 'This browser does not expose microphone access (getUserMedia unavailable). Try opening this page directly in a modern browser tab rather than an embedded preview.';
+      el.micError.classList.add('show');
+      return;
+    }
+    if (!isSecureContextOk()) {
+      el.micError.textContent = 'Microphone access needs a secure context (https). Try opening this page’s own URL directly in a new browser tab.';
+      el.micError.classList.add('show');
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+      .then(function (stream) {
+        state.mode = 'record';
+        state.mediaStream = stream;
+        var AC = window.AudioContext || window.webkitAudioContext;
+        state.audioCtx = new AC();
+        var ctx = state.audioCtx;
+
+        var source = ctx.createMediaStreamSource(stream);
+        var processor = ctx.createScriptProcessor(4096, 1, 1);
+        var recording = { chunks: [], sampleRate: ctx.sampleRate, firstChunkCtxTime: null };
+        processor.onaudioprocess = function (e) {
+          if (recording.firstChunkCtxTime === null) {
+            recording.firstChunkCtxTime = ctx.currentTime - e.inputBuffer.duration;
+          }
+          recording.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        };
+        var silentGain = ctx.createGain();
+        silentGain.gain.value = 0;
+        source.connect(processor);
+        processor.connect(silentGain);
+        silentGain.connect(ctx.destination);
+        state.recordGraph = { source: source, processor: processor, silentGain: silentGain };
+        state.recording = recording;
+
+        var timeline = buildTimeline(state.piece, state.bpm, state.countIn, ctx.currentTime, 0.3);
+        state.timeline = timeline;
+
+        el.recordBtn.textContent = 'Stop recording';
+        el.recordBtn.classList.add('stop');
+        el.playAlongBtn.disabled = true;
+        el.statusLight.classList.add('active');
+
+        runTimeline(timeline, {
+          recording: true,
+          onDone: function () { finishRecording(); }
+        });
+      })
+      .catch(function (err) {
+        var msg = 'Could not access the microphone.';
+        if (err && err.name === 'NotAllowedError') msg = 'Microphone permission was denied. Allow microphone access for this page and try again.';
+        else if (err && err.name === 'NotFoundError') msg = 'No microphone was found on this device.';
+        el.micError.textContent = msg;
+        el.micError.classList.add('show');
+      });
+  }
+
+  function finishRecording() {
+    var recording = state.recording;
+    var timeline = state.timeline;
+    stopAudioGraph();
+
+    if (!recording || recording.chunks.length === 0) {
+      stopAll();
+      return;
+    }
+
+    var totalLen = recording.chunks.reduce(function (s, c) { return s + c.length; }, 0);
+    var full = new Float32Array(totalLen);
+    var off = 0;
+    recording.chunks.forEach(function (c) { full.set(c, off); off += c.length; });
+
+    var grades = gradeTake(full, recording.sampleRate, recording.firstChunkCtxTime, timeline);
+    state.lastGrade = grades;
+    state.renderInfo = renderPiece(state.piece, grades);
+    showGradeResults(grades);
+    resetPlaybackUI();
+  }
+
+  var EARLY_WINDOW = 0.15;
+  var LATE_WINDOW = 0.35;
+  var ON_TIME_MS = 90;
+  var PITCH_TOLERANCE_CENTS = 45;
+  var ANALYSIS_WINDOW_SEC = 0.09;
+  var ONSET_SKIP_SEC = 0.02;
+
+  function gradeTake(buffer, sampleRate, bufferT0, timeline) {
+    var hopSize = Math.round(sampleRate * 0.01); // ~10ms
+    var results = [];
+
+    timeline.notes.forEach(function (note) {
+      var winStartT = note.time - EARLY_WINDOW;
+      var winEndT = note.time + LATE_WINDOW;
+      var winStart = Math.max(0, Math.round((winStartT - bufferT0) * sampleRate));
+      var winEnd = Math.min(buffer.length, Math.round((winEndT - bufferT0) * sampleRate));
+
+      if (winEnd - winStart < hopSize * 2) {
+        results.push({ grade: 'missed' });
+        return;
+      }
+
+      // Energy-rise onset detection: find the first hop whose RMS clears an
+      // absolute floor and is a clear rise over the local baseline.
+      var onsetSample = -1;
+      var baseline = 0.006;
+      for (var pos = winStart; pos + hopSize < winEnd; pos += hopSize) {
+        var sum = 0;
+        for (var k = pos; k < pos + hopSize; k++) sum += buffer[k] * buffer[k];
+        var rms = Math.sqrt(sum / hopSize);
+        if (rms > 0.02 && rms > baseline * 2.5) { onsetSample = pos; break; }
+        baseline = baseline * 0.7 + rms * 0.3;
+      }
+
+      if (onsetSample === -1) {
+        results.push({ grade: 'missed' });
+        return;
+      }
+
+      var onsetTime = bufferT0 + onsetSample / sampleRate;
+      var analysisStart = onsetSample + Math.round(ONSET_SKIP_SEC * sampleRate);
+      var analysisLen = Math.round(ANALYSIS_WINDOW_SEC * sampleRate);
+      var analysisEnd = Math.min(buffer.length, analysisStart + analysisLen);
+      if (analysisEnd - analysisStart < 256) {
+        results.push({ grade: 'missed' });
+        return;
+      }
+      var slice = buffer.slice(analysisStart, analysisEnd);
+      var freq = autoCorrelate(slice, sampleRate);
+
+      var timingOffsetMs = (onsetTime - note.time) * 1000;
+      var onTime = Math.abs(timingOffsetMs) <= ON_TIME_MS;
+
+      if (freq === -1) {
+        results.push({ grade: 'missed' });
+        return;
+      }
+      var cents = centsOff(freq, note.freq);
+      var pitchOk = Math.abs(cents) <= PITCH_TOLERANCE_CENTS;
+
+      if (!pitchOk) {
+        results.push({ grade: 'wrongPitch', timingOffsetMs: timingOffsetMs, detectedFreq: freq });
+      } else if (onTime) {
+        results.push({ grade: 'good', timingOffsetMs: timingOffsetMs, detectedFreq: freq });
+      } else {
+        results.push({ grade: 'timingOff', timingOffsetMs: timingOffsetMs, detectedFreq: freq });
+      }
+    });
+
+    return results;
+  }
+
+  function showGradeResults(grades) {
+    var total = grades.length;
+    var good = grades.filter(function (g) { return g.grade === 'good'; }).length;
+    var issues = total - good;
+    var accuracy = total ? Math.round((good / total) * 100) : 0;
+
+    el.statAccuracy.textContent = total ? accuracy + '%' : '—';
+    el.statCorrect.textContent = good + ' / ' + total;
+    el.statIssues.textContent = issues;
+
+    var timed = grades.filter(function (g) { return typeof g.timingOffsetMs === 'number'; });
+    if (timed.length) {
+      var avg = timed.reduce(function (s, g) { return s + g.timingOffsetMs; }, 0) / timed.length;
+      el.timingNote.textContent = 'Avg timing: ' + Math.round(Math.abs(avg)) + 'ms ' + (avg >= 0 ? 'late' : 'early');
+    } else {
+      el.timingNote.textContent = 'No notes were confidently detected.';
+    }
+
+    el.bigReadout.textContent = total ? accuracy + '%' : '—';
+    el.bigReadout.className = 'readout-note' + (accuracy >= 85 ? ' state-good' : accuracy < 50 ? ' state-bad' : '');
+    el.subReadout.textContent = good + ' of ' + total + ' notes correct';
+    el.instruction.textContent = 'Graded';
+  }
+
+  function resetStats() {
+    el.statAccuracy.textContent = '—';
+    el.statCorrect.textContent = '—';
+    el.statIssues.textContent = '—';
+    el.timingNote.innerHTML = '&nbsp;';
+  }
+
+  /* ==================================================================
+     Stop / cleanup
+     ================================================================== */
+
+  function stopAudioGraph() {
+    if (state.schedulerTimer) { clearTimeout(state.schedulerTimer); state.schedulerTimer = null; }
+    if (state.rafId) { cancelAnimationFrame(state.rafId); state.rafId = null; }
+    if (state.recordGraph) {
+      try { state.recordGraph.source.disconnect(); } catch (e) {}
+      try { state.recordGraph.processor.disconnect(); } catch (e) {}
+      try { state.recordGraph.silentGain.disconnect(); } catch (e) {}
+      state.recordGraph = null;
+    }
+    if (state.mediaStream) {
+      state.mediaStream.getTracks().forEach(function (t) { t.stop(); });
+      state.mediaStream = null;
+    }
+    if (state.audioCtx) {
+      state.audioCtx.close().catch(function () {});
+      state.audioCtx = null;
+    }
+  }
+
+  function resetPlaybackUI() {
+    el.playAlongBtn.textContent = 'Play along (metronome only)';
+    el.playAlongBtn.classList.remove('stop');
+    el.playAlongBtn.disabled = !state.piece;
+    el.recordBtn.textContent = 'Start recording';
+    el.recordBtn.classList.remove('stop');
+    el.recordBtn.disabled = !state.piece;
+    el.statusLight.classList.remove('active');
+    if (state.renderInfo) state.renderInfo.cursorRects.forEach(function (r) { r.classList.remove('on'); });
+    var dots = el.beatDots.querySelectorAll('.beat-dot');
+    Array.prototype.forEach.call(dots, function (d) { d.classList.remove('on'); });
+    state.mode = null;
+    state.recording = null;
+    state.timeline = null;
+  }
+
+  function stopAll() {
+    stopAudioGraph();
+    resetPlaybackUI();
+    if (!state.lastGrade) {
+      el.instruction.textContent = state.piece ? 'Ready' : 'Set your parameters and generate a piece';
+      if (state.piece) {
+        el.bigReadout.textContent = state.bars + ' bar' + (state.bars === 1 ? '' : 's');
+        el.bigReadout.className = 'readout-note';
+        el.subReadout.textContent = currentKey().label + ' · ' + state.timeSig + ' · ' + state.bpm + ' bpm';
+      }
+    }
+  }
+
+  /* ==================================================================
+     Controls wiring
+     ================================================================== */
+
+  el.generateBtn.addEventListener('click', doGenerate);
+
+  el.playAlongBtn.addEventListener('click', function () {
+    if (state.mode === 'playalong') { stopAll(); return; }
+    startPlayAlong();
+  });
+
+  el.recordBtn.addEventListener('click', function () {
+    if (state.mode === 'record') { finishRecording(); return; }
+    startRecording();
+  });
+
+  el.ledgerAbove.addEventListener('input', function () {
+    state.ledgerAbove = parseInt(el.ledgerAbove.value, 10);
+    el.ledgerAboveVal.textContent = state.ledgerAbove;
+    saveSettings();
+  });
+  el.ledgerBelow.addEventListener('input', function () {
+    state.ledgerBelow = parseInt(el.ledgerBelow.value, 10);
+    el.ledgerBelowVal.textContent = state.ledgerBelow;
+    saveSettings();
+  });
+  el.keySelect.addEventListener('change', function () {
+    state.keyName = el.keySelect.value;
+    saveSettings();
+  });
+  el.timeSigSelect.addEventListener('change', function () {
+    state.timeSig = el.timeSigSelect.value;
+    saveSettings();
+  });
+  el.barsRange.addEventListener('input', function () {
+    state.bars = parseInt(el.barsRange.value, 10);
+    el.barsVal.textContent = state.bars;
+    saveSettings();
+  });
+  el.difficultySwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-difficulty]');
+    if (!btn) return;
+    state.difficulty = btn.getAttribute('data-difficulty');
+    Array.prototype.forEach.call(el.difficultySwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    saveSettings();
+  });
+  el.tempoRange.addEventListener('input', function () {
+    state.bpm = parseInt(el.tempoRange.value, 10);
+    el.tempoVal.textContent = state.bpm;
+    saveSettings();
+    if (state.piece && state.mode === null) {
+      el.subReadout.textContent = currentKey().label + ' · ' + state.timeSig + ' · ' + state.bpm + ' bpm';
+    }
+  });
+  el.countInSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-countin]');
+    if (!btn) return;
+    state.countIn = btn.getAttribute('data-countin') === 'on';
+    Array.prototype.forEach.call(el.countInSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    saveSettings();
+  });
+
+  /* ==================================================================
+     Init
+     ================================================================== */
+
+  function init() {
+    populateKeySelect();
+    el.ledgerAbove.value = state.ledgerAbove; el.ledgerAboveVal.textContent = state.ledgerAbove;
+    el.ledgerBelow.value = state.ledgerBelow; el.ledgerBelowVal.textContent = state.ledgerBelow;
+    el.timeSigSelect.value = state.timeSig;
+    el.barsRange.value = state.bars; el.barsVal.textContent = state.bars;
+    el.tempoRange.value = state.bpm; el.tempoVal.textContent = state.bpm;
+    Array.prototype.forEach.call(el.difficultySwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-difficulty') === state.difficulty);
+    });
+    Array.prototype.forEach.call(el.countInSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', (b.getAttribute('data-countin') === 'on') === state.countIn);
+    });
+    resetStats();
+  }
+
+  init();
+
+  window.addEventListener('beforeunload', function () { stopAudioGraph(); });
+})();
+</script>
+
+</body>
+</html>
