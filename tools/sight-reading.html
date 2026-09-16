@@ -59,7 +59,7 @@
     * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
   }
 
-  .page { max-width: 1080px; margin: 0 auto; }
+  .page { max-width: 1440px; margin: 0 auto; }
 
   header.top {
     display: flex; align-items: baseline; justify-content: space-between;
@@ -532,13 +532,37 @@
      Notation rendering (VexFlow)
      ================================================================== */
 
-  function barWidth(segCount, isFirst) {
+  function barWidth(segCount, isFirstOfLine) {
     var w = 60 + segCount * 42;
-    if (isFirst) w += 116;
-    return Math.max(w, isFirst ? 230 : 130);
+    if (isFirstOfLine) w += 116;
+    return Math.max(w, isFirstOfLine ? 230 : 130);
   }
 
-  // Renders the piece and returns { barBounds: [{x0,x1}], gradableNoteEls: [vfNote,...] }
+  // Greedily packs bars into systems (lines) so the whole piece fits the
+  // available width without horizontal scrolling — the same way a printed
+  // page of music wraps, rather than one endless scrolling row.
+  function layoutSystems(piece, containerWidth) {
+    var systems = [];
+    var current = null;
+    for (var b = 0; b < piece.bars.length; b++) {
+      var isFirstOfLine = !current;
+      var w = barWidth(piece.bars[b].length, isFirstOfLine);
+      if (current && current.usedWidth + w > containerWidth) {
+        systems.push(current);
+        current = null;
+        isFirstOfLine = true;
+        w = barWidth(piece.bars[b].length, true);
+      }
+      if (!current) current = { barIndices: [], widths: [], usedWidth: 20 };
+      current.barIndices.push(b);
+      current.widths.push(w);
+      current.usedWidth += w;
+    }
+    if (current) systems.push(current);
+    return systems;
+  }
+
+  // Renders the piece and returns { barBounds: [{x0,x1}], cursorRects: [...] }
   // gradeResults, if given, is an array parallel to piece.gradable with a
   // 'grade' field ('good' | 'timingOff' | 'wrongPitch' | 'missed') used to
   // colour each notehead.
@@ -553,33 +577,51 @@
     var topPad = 44 + piece.ledgerAbove * 11;
     var bottomPad = 46 + piece.ledgerBelow * 11;
     var staveH = 110;
-    var totalHeight = topPad + staveH + bottomPad;
+    var systemHeight = topPad + staveH + bottomPad;
 
-    var widths = piece.bars.map(function (bar, i) { return barWidth(bar.length, i === 0); });
-    var totalWidth = 20 + widths.reduce(function (s, w) { return s + w; }, 0);
+    var frameStyle = window.getComputedStyle(frame);
+    var padL = parseFloat(frameStyle.paddingLeft) || 14;
+    var padR = parseFloat(frameStyle.paddingRight) || 14;
+    var containerWidth = Math.max(360, (frame.clientWidth || 900) - padL - padR - 4);
+
+    var systems = layoutSystems(piece, containerWidth);
+    var totalWidth = containerWidth;
+    var totalHeight = systemHeight * systems.length;
 
     svg.setAttribute('viewBox', '0 0 ' + totalWidth + ' ' + totalHeight);
     svg.style.display = 'block';
+    // VexFlow's renderer.resize() below sets its own width/height on the
+    // <svg> element; set these inline (after resize, so they win) rather
+    // than relying on the stylesheet rule alone, so the notation always
+    // scales to fit its panel instead of forcing horizontal scroll.
     emptyMsg.style.display = 'none';
     frame.classList.remove('empty');
 
     var renderer = new VF.Renderer(svg, VF.Renderer.Backends.SVG);
     renderer.resize(totalWidth, totalHeight);
+    svg.style.width = '100%';
+    svg.style.height = 'auto';
     var context = renderer.getContext();
 
     var gradeIdx = 0;
-    var x = 10;
     var barBounds = [];
     var cursorRects = [];
 
-    for (var b = 0; b < piece.bars.length; b++) {
+    for (var sysIdx = 0; sysIdx < systems.length; sysIdx++) {
+      var system = systems[sysIdx];
+      var y = sysIdx * systemHeight + topPad;
+      var x = 10;
+
+      for (var i = 0; i < system.barIndices.length; i++) {
+      var b = system.barIndices[i];
       var segs = piece.bars[b];
-      var w = widths[b];
-      var stave = new VF.Stave(x, topPad, w);
-      if (b === 0) {
+      var w = system.widths[i];
+      var isFirstOfLine = i === 0;
+      var stave = new VF.Stave(x, y, w);
+      if (isFirstOfLine) {
         stave.addClef('treble');
         stave.addKeySignature(piece.key.name);
-        stave.addTimeSignature(piece.timeSig);
+        if (b === 0) stave.addTimeSignature(piece.timeSig);
       }
       if (b === piece.bars.length - 1) stave.setEndBarType(VF.Barline.type.END);
       stave.setContext(context).draw();
@@ -608,7 +650,7 @@
       voice.addTickables(vfNotes);
       VF.Accidental.applyAccidentals([voice], piece.key.name);
 
-      var innerWidth = w - (b === 0 ? 110 : 16);
+      var innerWidth = w - (isFirstOfLine ? 110 : 16);
       new VF.Formatter().joinVoices([voice]).format([voice], innerWidth);
       voice.draw(context, stave);
 
@@ -621,7 +663,7 @@
       // Bar-highlight rect, inserted behind everything else so it doesn't occlude notes.
       var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       rect.setAttribute('x', x);
-      rect.setAttribute('y', topPad - 26);
+      rect.setAttribute('y', y - 26);
       rect.setAttribute('width', w);
       rect.setAttribute('height', staveH + 26);
       rect.setAttribute('class', 'bar-cursor');
@@ -629,6 +671,7 @@
       cursorRects.push(rect);
 
       x += w;
+      }
     }
 
     return { barBounds: barBounds, cursorRects: cursorRects };
@@ -1294,6 +1337,17 @@
   }
 
   init();
+
+  // Re-wrap the notation if the panel width changes (window resize, sidebar
+  // toggling on mobile, etc.) so it keeps fitting without horizontal scroll.
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    if (!state.piece || state.mode) return; // don't reflow mid-playback
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      state.renderInfo = renderPiece(state.piece, state.lastGrade || undefined);
+    }, 150);
+  });
 
   window.addEventListener('beforeunload', function () { stopAudioGraph(); });
 })();

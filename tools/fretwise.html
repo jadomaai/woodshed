@@ -462,6 +462,15 @@
 
   svg.fretboard { display: block; width: 100%; height: auto; }
 
+  .fretboard-watermark {
+    fill: var(--text);
+    opacity: 0.16;
+    pointer-events: none;
+    transition: fill 160ms ease, opacity 160ms ease;
+  }
+  .fretboard-watermark.wm-good { fill: var(--good); opacity: 0.62; }
+  .fretboard-watermark.wm-bad { fill: var(--bad); opacity: 0.62; }
+
   .fret-cell { cursor: pointer; }
   .fret-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
@@ -1029,6 +1038,8 @@
   var stringLabelEls = [];
   var stringThickness = [];
   var fretPositionMarkers = {}; // key "s-f" -> group el (dot/ring) created on demand
+  var watermarkEl = null; // large target-note label watermarked onto the fretboard itself (mic/tap modes)
+  var flashResetTimer = null;
 
   function buildFretboard() {
     var svg = el.fretboardSvg;
@@ -1038,6 +1049,7 @@
     stringLabelEls = [];
     stringThickness = [];
     fretPositionMarkers = {};
+    watermarkEl = null;
 
     var strings = tuning().labels;
     var nStrings = 6;
@@ -1050,6 +1062,20 @@
     var innerH = height - FB.top - FB.bottom;
     var fretW = innerW / nFrets;
     var stringGap = innerH / (nStrings - 1);
+
+    // Target-note watermark — sits behind the frets/strings/markers (added
+    // first, so everything else draws on top and stays crisp), showing
+    // whichever note is currently being asked for right on the fretboard
+    // itself instead of in a separate readout above it. Only populated in
+    // mic/tap modes (see nextRound()); stays empty otherwise.
+    watermarkEl = svgEl('text', {
+      x: FB.left + innerW / 2, y: FB.top + innerH / 2,
+      'text-anchor': 'middle', 'dominant-baseline': 'middle',
+      'font-family': 'var(--font-display)', 'font-weight': '700',
+      'font-size': Math.min(120, innerH * 0.78).toFixed(0),
+      class: 'fretboard-watermark'
+    });
+    svg.appendChild(watermarkEl);
 
     // Fret position inlays (single dots at 3,5,7,9,15,17..., double at 12) — toggleable, since
     // some instruments (e.g. classical guitars) have a bare fretboard with no inlays at all.
@@ -1236,8 +1262,15 @@
     var nm = nameFromMidi(state.target.midi);
     var stringLabel = tuning().labels[state.target.stringIndex];
 
-    el.targetNote.textContent = nm.label;
+    // The note itself is shown watermarked on the fretboard (see buildFretboard/
+    // flashReadout) rather than up here, so it doesn't sit as a distracting
+    // answer above the board — the readout keeps just the string to play on.
+    el.targetNote.textContent = '—';
     el.targetNote.className = 'readout-note';
+    if (watermarkEl) {
+      watermarkEl.classList.remove('wm-good', 'wm-bad');
+      watermarkEl.textContent = nm.label;
+    }
 
     if (state.mode === 'mic') {
       el.instruction.innerHTML = 'Play it on the <b>' + stringLabel + '</b> string';
@@ -1263,9 +1296,10 @@
   }
 
   function flashReadout(kind) {
-    el.targetNote.classList.remove('state-good', 'state-bad');
-    void el.targetNote.offsetWidth;
-    el.targetNote.classList.add(kind === 'good' ? 'state-good' : 'state-bad');
+    if (!watermarkEl) return;
+    watermarkEl.classList.remove('wm-good', 'wm-bad');
+    void watermarkEl.getBBox();
+    watermarkEl.classList.add(kind === 'good' ? 'wm-good' : 'wm-bad');
   }
 
   function handleTapAnswer(stringIndex, fret) {
