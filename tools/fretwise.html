@@ -463,8 +463,8 @@
   svg.fretboard { display: block; width: 100%; height: auto; }
 
   .fretboard-watermark {
-    fill: var(--text);
-    opacity: 0.16;
+    fill: var(--accent);
+    opacity: 0.26;
     pointer-events: none;
     transition: fill 160ms ease, opacity 160ms ease;
   }
@@ -707,7 +707,7 @@
 
   <div class="rack">
     <div class="col-main">
-      <div class="panel readout-panel">
+      <div class="panel readout-panel" id="readoutPanel">
         <div class="readout">
           <div class="status-light" id="statusLight"></div>
           <div class="readout-instruction" id="instruction">Press start to begin</div>
@@ -993,6 +993,7 @@
   /* ---------------- DOM refs ---------------- */
 
   var el = {
+    readoutPanel: document.getElementById('readoutPanel'),
     instruction: document.getElementById('instruction'),
     targetNote: document.getElementById('targetNote'),
     targetSub: document.getElementById('targetSub'),
@@ -1720,6 +1721,13 @@
     el.findList.style.display = 'none';
     el.findControls.style.display = state.mode === 'find' ? 'block' : 'none';
     updateLegend();
+
+    // Play/tap modes already cue everything on the fretboard itself — the
+    // target string is highlighted and the note is watermarked over the
+    // board — so the readout window above it would just repeat that. Only
+    // tune and find modes still need it (tuner needle/readings, find-mode
+    // instructions).
+    el.readoutPanel.style.display = (state.mode === 'mic' || state.mode === 'tap') ? 'none' : '';
 
     if (state.mode === 'tune') {
       enterTuneMode();
