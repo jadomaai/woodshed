@@ -1,7 +1,7 @@
 // Woodshed service worker — caches the app shell + all tool pages so the app
 // works offline once it's been opened at least once. Bump CACHE_NAME whenever
 // any precached file changes, so returning visitors pick up the update.
-const CACHE_NAME = 'woodshed-v5';
+const CACHE_NAME = 'woodshed-v7';
 
 const PRECACHE_URLS = [
   './',

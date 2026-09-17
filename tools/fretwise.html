@@ -525,6 +525,26 @@
 
   svg.fretboard { display: block; width: 100%; height: auto; }
 
+  /* ---------- Read it mode: single-note staff ---------- */
+
+  .read-staff-wrap { overflow-x: auto; padding-bottom: 4px; }
+
+  .read-staff-frame {
+    background: #f6f1e4;
+    border-radius: 8px;
+    padding: 14px;
+    min-width: 260px;
+    min-height: 130px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+    transition: box-shadow 160ms ease;
+  }
+
+  .read-staff-frame.flash-good {
+    box-shadow: 0 0 0 3px var(--good) inset;
+  }
+
+  svg.read-staff-svg { display: block; width: 100%; height: auto; }
+
   .fretboard-watermark {
     fill: var(--accent);
     opacity: 0.26;
@@ -789,6 +809,15 @@
         </div>
       </div>
 
+      <div class="panel" id="readStaffPanel" style="display:none; margin-top:18px;">
+        <h2>Notation</h2>
+        <div class="read-staff-wrap">
+          <div class="read-staff-frame" id="readStaffFrame">
+            <svg class="read-staff-svg" id="readStaffSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+        </div>
+      </div>
+
       <div class="panel" style="margin-top:18px;">
         <h2>Fretboard</h2>
         <div class="fretboard-wrap">
@@ -812,6 +841,7 @@
           <div class="segmented" id="modeSwitch">
             <button type="button" data-mode="mic" class="active">Play it</button>
             <button type="button" data-mode="tap">Tap it</button>
+            <button type="button" data-mode="read">Read it</button>
             <button type="button" data-mode="tune">Tune</button>
             <button type="button" data-mode="find">Find</button>
           </div>
@@ -827,6 +857,13 @@
           <div class="segmented" id="findRevealSwitch">
             <button type="button" data-reveal="instant" class="active">Show me</button>
             <button type="button" data-reveal="listen">Find by ear</button>
+          </div>
+          <div class="field" id="findCycleField" style="display:none; margin-top:14px;">
+            <label class="field-label">Notes</label>
+            <div class="segmented" id="findCycleSwitch">
+              <button type="button" data-cycle="off" class="active">Just this note</button>
+              <button type="button" data-cycle="on">Circle of 5ths</button>
+            </div>
           </div>
           <div class="find-progress-row" id="findProgressRow" style="display:none;">
             <span class="find-progress" id="findProgress">0 of 0 found</span>
@@ -881,11 +918,13 @@
         <div class="help-note" id="helpNote">
           <strong>Play it</strong>: the readout names a note and highlights a string — find that note on that string and play it. Fretwise listens through your mic and checks pitch <em>and</em> octave, so it only accepts the note in that string's range. It can't tell which physical string you plucked, so an identical pitch on a neighbouring string will also register — that's the one gap in mic mode.
           <br><br>
+          <strong>Read it</strong>: a note appears on the staff — no string is hinted, no name is given. Find and play it anywhere on the neck; a ring on the fretboard confirms exactly where it was played, to reinforce what Find by ear teaches. Same mic caveat as Play it above.
+          <br><br>
           <strong>Tune</strong>: pluck each open string and Fretwise matches it to the nearest string in your chosen tuning, showing how sharp or flat it is so you can bring the guitar to pitch before practising.
           <br><br>
           <strong>Find</strong>: pick one or more notes to see every place they sound within the current fret range, on all six strings, each marked with its exact pitch (e.g. D3) in that note's own colour. This mode ignores the strings-in-play filter, since the point is to see the whole neck.
           <br><br>
-          <strong>Notes</strong> (in Settings): Chromatic includes sharps/flats everywhere in the app; Naturals only restricts both the practice target in Play it/Tap it and the note picker in Find to C D E F G A B.
+          <strong>Notes</strong> (in Settings): Chromatic includes sharps/flats everywhere in the app; Naturals only restricts the practice target in Play it/Tap it/Read it and the note picker in Find to C D E F G A B.
         </div>
       </div>
     </div>
@@ -894,14 +933,25 @@
   <footer class="foot">All pitch detection runs locally in your browser. No audio is recorded or uploaded.</footer>
 </div>
 
+<script src="../lib/vexflow.min.js"></script>
 <script>
 (function () {
   'use strict';
+
+  // Read it mode needs the notation engine; every other mode works fine
+  // without it, so a failed/missing load only disables that one mode rather
+  // than breaking the app.
+  var VF = (window.Vex && window.Vex.Flow) || null;
 
   /* ---------------- Note / frequency utilities (validated against known guitar frequencies) ---------------- */
 
   var NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   var NATURAL_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  var CIRCLE_OF_FIFTHS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#', 'F'];
+  function nextCircleNote(note) {
+    var idx = CIRCLE_OF_FIFTHS.indexOf(note);
+    return CIRCLE_OF_FIFTHS[(idx === -1 ? 0 : idx + 1) % CIRCLE_OF_FIFTHS.length];
+  }
 
   // One fixed, distinct colour per pitch class (Find mode), so a note keeps the
   // same colour no matter what else is selected alongside it. Spaced around the
@@ -943,6 +993,65 @@
 
   function midiForPosition(tuning, stringIndex, fret) {
     return tuning.midi[stringIndex] + fret;
+  }
+
+  /* ---------------- Read it mode: draws one note on a treble-clef staff ----------------
+     Pitch is shown at its literal (concert) pitch — the same convention the
+     Sight Reading tool uses — rather than the octave-up transposition real
+     guitar sheet music uses, since the point here is a direct, unambiguous
+     link to the exact fretboard pitch it's asking for. */
+  // Staff position 0 = bottom line of the treble staff (E4), same convention
+  // Sight Reading uses. Guitar range runs from open low E (E2, well below
+  // the staff) to well above the top line on the higher strings/frets, so
+  // the panel has to grow tall enough for whichever note is currently shown
+  // instead of a fixed height — otherwise low notes get clipped.
+  var STAFF_LETTER_CYCLE = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  function staffPositionForLetterOctave(letter, octave) {
+    var e4Index = 4 * 7 + STAFF_LETTER_CYCLE.indexOf('E');
+    return (octave * 7 + STAFF_LETTER_CYCLE.indexOf(letter)) - e4Index;
+  }
+
+  function renderReadNote(midi) {
+    if (!VF || !el.readStaffSvg) {
+      if (el.readStaffFrame) el.readStaffFrame.textContent = 'Notation engine failed to load — try reloading the app.';
+      return;
+    }
+    el.readStaffSvg.innerHTML = '';
+    var nm = nameFromMidi(midi);
+    var keyStr = nm.name.toLowerCase() + '/' + nm.octave;
+
+    var pos = staffPositionForLetterOctave(nm.name.charAt(0), nm.octave);
+    var ledgerBelow = Math.max(0, Math.ceil((0 - pos) / 2));
+    var ledgerAbove = Math.max(0, Math.ceil((pos - 8) / 2));
+    var topPad = 30 + ledgerAbove * 11;
+    var bottomPad = 34 + ledgerBelow * 11;
+    var height = topPad + 40 + bottomPad;
+
+    var width = Math.max(220, (el.readStaffFrame.clientWidth || 260) - 4);
+    // VexFlow's SVG backend draws into a nested <svg> it creates inside this
+    // one; without an explicit viewBox here, the outer element falls back to
+    // the browser's default SVG size and clips anything taller than that —
+    // which low notes needing several ledger lines below the staff hit.
+    el.readStaffSvg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+    var renderer = new VF.Renderer(el.readStaffSvg, VF.Renderer.Backends.SVG);
+    renderer.resize(width, height);
+    el.readStaffSvg.style.width = '100%';
+    el.readStaffSvg.style.height = 'auto';
+    var context = renderer.getContext();
+
+    var stave = new VF.Stave(10, topPad, width - 20);
+    stave.addClef('treble');
+    stave.setContext(context).draw();
+
+    var note = new VF.StaveNote({ keys: [keyStr], duration: 'w', clef: 'treble' });
+    var voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+    voice.setStrict(false);
+    voice.addTickables([note]);
+    // No key signature in this drill — every sharp gets its own accidental,
+    // same as applying accidentals against a key of C.
+    VF.Accidental.applyAccidentals([voice], 'C');
+    new VF.Formatter().joinVoices([voice]).format([voice], width - 100);
+    voice.draw(context, stave);
   }
 
   /* ---------------- Pitch detection (autocorrelation, ACF2+ style) ---------------- */
@@ -1011,6 +1120,7 @@
         findNotes: Object.keys(state.findNotes),
         noteFilterMode: state.noteFilterMode,
         findListenMode: state.findListenMode,
+        findCycleEnabled: state.findCycleEnabled,
         mode: state.mode
       }));
     } catch (e) { /* ignore */ }
@@ -1026,12 +1136,14 @@
     tunedConfirmed: [false, false, false, false, false, false],
     findNotes: {}, // note name -> true, e.g. { C: true, 'D#': true }
     noteFilterMode: 'chromatic', // 'chromatic' | 'naturals'
-    mode: 'mic', // 'mic' | 'tap' | 'tune' | 'find'
+    mode: 'mic', // 'mic' | 'tap' | 'read' | 'tune' | 'find'
     findListenMode: false, // false = reveal instantly, true = find-by-ear gamified mode
     findFound: {}, // "stringIndex-fret" -> true, positions found so far in find-by-ear mode
     findStringPos: 0, // current string under test in find-by-ear mode, 0 = Low E (6th) .. 5 = High e (1st)
     findCooldown: false, // true briefly after completing a string, while the flash plays before advancing
     findAwaitingSilence: false, // true right after advancing to a new string, until the previous note stops ringing
+    findCycleEnabled: false, // true = after finishing a note on every string, auto-advance to the next note around the circle of fifths
+    findCycleStartNote: null, // the note the current lap started on, so we know when we've come full circle
     findMatchStreak: 0,
     findMatchKey: null,
     listening: false,
@@ -1061,12 +1173,17 @@
     }
     if (saved.noteFilterMode === 'chromatic' || saved.noteFilterMode === 'naturals') state.noteFilterMode = saved.noteFilterMode;
     if (typeof saved.findListenMode === 'boolean') state.findListenMode = saved.findListenMode;
-    if (saved.mode === 'mic' || saved.mode === 'tap' || saved.mode === 'tune' || saved.mode === 'find') state.mode = saved.mode;
+    if (typeof saved.findCycleEnabled === 'boolean') state.findCycleEnabled = saved.findCycleEnabled;
+    if (saved.mode === 'mic' || saved.mode === 'tap' || saved.mode === 'read' || saved.mode === 'tune' || saved.mode === 'find') state.mode = saved.mode;
   }
   if (state.noteFilterMode === 'naturals') {
     NOTE_NAMES_SHARP.forEach(function (n) {
       if (n.indexOf('#') !== -1) delete state.findNotes[n];
     });
+  }
+  if (state.findCycleEnabled) {
+    var savedFindNotes = Object.keys(state.findNotes);
+    state.findCycleStartNote = savedFindNotes.length > 0 ? savedFindNotes[0] : 'C';
   }
 
   function tuning() { return TUNINGS[state.tuningKey]; }
@@ -1083,6 +1200,9 @@
     meterNeedle: document.getElementById('meterNeedle'),
     meterFreq: document.getElementById('meterFreq'),
     fretboardSvg: document.getElementById('fretboardSvg'),
+    readStaffPanel: document.getElementById('readStaffPanel'),
+    readStaffFrame: document.getElementById('readStaffFrame'),
+    readStaffSvg: document.getElementById('readStaffSvg'),
     modeSwitch: document.getElementById('modeSwitch'),
     micStartField: document.getElementById('micStartField'),
     micToggleBtn: document.getElementById('micToggleBtn'),
@@ -1094,6 +1214,8 @@
     tunerStrings: document.getElementById('tunerStrings'),
     findControls: document.getElementById('findControls'),
     findRevealSwitch: document.getElementById('findRevealSwitch'),
+    findCycleField: document.getElementById('findCycleField'),
+    findCycleSwitch: document.getElementById('findCycleSwitch'),
     findProgressRow: document.getElementById('findProgressRow'),
     findProgress: document.getElementById('findProgress'),
     findResetBtn: document.getElementById('findResetBtn'),
@@ -1348,6 +1470,19 @@
     var nm = nameFromMidi(state.target.midi);
     var stringLabel = tuning().labels[state.target.stringIndex];
 
+    if (state.mode === 'read') {
+      // The whole point is finding the position yourself from the notation —
+      // no string highlight, no note name anywhere, just the staff.
+      el.targetNote.textContent = '—';
+      el.targetNote.className = 'readout-note';
+      el.targetSub.textContent = '';
+      if (watermarkEl) { watermarkEl.classList.remove('wm-good', 'wm-bad'); watermarkEl.textContent = ''; }
+      highlightTargetString(-1);
+      el.instruction.textContent = 'Play the note shown';
+      renderReadNote(state.target.midi);
+      return;
+    }
+
     // The note itself is shown watermarked on the fretboard (see buildFretboard/
     // flashReadout) rather than up here, so it doesn't sit as a distracting
     // answer above the board — the readout keeps just the string to play on.
@@ -1542,6 +1677,14 @@
   function onMicMatch() {
     registerResult(true);
     flashReadout('good');
+    // The fretboard ring left by markPosition is the whole point in Read it
+    // mode — it's the answer to "where is the note I just read" — so it
+    // needs its own visible confirmation too, since the (empty, in this
+    // mode) watermark flash gives no visual cue on its own.
+    if (state.mode === 'read' && el.readStaffFrame) {
+      el.readStaffFrame.classList.add('flash-good');
+      setTimeout(function () { el.readStaffFrame.classList.remove('flash-good'); }, 700);
+    }
     markPosition(state.target.stringIndex, state.target.fret, 'good');
     var target = state.target;
     state.target = null; // pause matching during cooldown
@@ -1708,6 +1851,19 @@
     return { total: total, found: found };
   }
 
+  // 1-based position of the currently selected note within the current
+  // circle-of-fifths lap (relative to whichever note the lap started on),
+  // or null when cycling isn't on.
+  function findCircleLapPosition() {
+    if (!state.findCycleEnabled || !state.findCycleStartNote) return null;
+    var current = selectedFindNotes()[0];
+    if (!current) return null;
+    var startIdx = CIRCLE_OF_FIFTHS.indexOf(state.findCycleStartNote);
+    var curIdx = CIRCLE_OF_FIFTHS.indexOf(current);
+    if (startIdx === -1 || curIdx === -1) return null;
+    return ((curIdx - startIdx + CIRCLE_OF_FIFTHS.length) % CIRCLE_OF_FIFTHS.length) + 1;
+  }
+
   function renderFindMarkers() {
     clearFretMarkers();
     el.findList.innerHTML = '';
@@ -1789,7 +1945,8 @@
     if (listenMode) {
       var counts = findTotalAndFoundCounts(byString);
       el.findProgressRow.style.display = 'flex';
-      el.findProgress.textContent = counts.found + ' of ' + counts.total + ' found';
+      var lapPos = findCircleLapPosition();
+      el.findProgress.textContent = counts.found + ' of ' + counts.total + ' found' + (lapPos ? ' · note ' + lapPos + ' of ' + CIRCLE_OF_FIFTHS.length : '');
       el.findProgress.classList.toggle('all-found', counts.total > 0 && counts.found === counts.total);
     } else {
       el.findProgressRow.style.display = 'none';
@@ -1862,6 +2019,10 @@
       state.findCooldown = false;
       if (!state.listening || state.mode !== 'find' || !state.findListenMode) return;
       advanceFindStringIfEmpty();
+      if (state.findStringPos >= 6 && state.findCycleEnabled) {
+        advanceFindCycle();
+        return;
+      }
       promptCurrentFindString();
       // Adjacent strings are often a fixed interval apart (5 frets, or 4 for
       // G-B), so the note that just completed a string is frequently the
@@ -1871,6 +2032,35 @@
       // require one silent moment before we start matching again.
       if (state.findStringPos < 6) state.findAwaitingSilence = true;
     }, 650);
+  }
+
+  // When "Circle of 5ths" is on, finishing a note across every string moves
+  // straight to the next note around the circle (from whatever note the
+  // player started on) instead of stopping. A different note name can never
+  // collide in pitch with the one just finished, so no silence gate is
+  // needed here the way there is between strings of the same note.
+  function advanceFindCycle() {
+    var current = selectedFindNotes()[0] || state.findCycleStartNote;
+    var next = nextCircleNote(current);
+    if (next === state.findCycleStartNote) {
+      // Back to the start — the lap is complete. Stop auto-advancing rather
+      // than silently looping forever; Reset (or picking a note) starts fresh.
+      state.findCycleEnabled = false;
+      Array.prototype.forEach.call(el.findCycleSwitch.querySelectorAll('button'), function (b) {
+        b.classList.toggle('active', b.getAttribute('data-cycle') === 'off');
+      });
+      highlightTargetString(-1);
+      if (watermarkEl) { watermarkEl.classList.remove('wm-bad'); watermarkEl.classList.add('wm-good'); watermarkEl.textContent = '✓'; }
+      el.instruction.textContent = 'Circle of fifths complete! \u{1F389}';
+      renderFindMarkers();
+      return;
+    }
+    state.findNotes = {};
+    state.findNotes[next] = true;
+    resetFindProgress();
+    renderNotePicker();
+    saveSettings();
+    enterFindMode();
   }
 
   // Checks a live pitch reading against the not-yet-found occurrence(s) of
@@ -1999,9 +2189,18 @@
       btn.style.setProperty('--note-text', colors.text);
       btn.textContent = n;
       btn.addEventListener('click', function () {
-        if (state.findNotes[n]) delete state.findNotes[n];
-        else state.findNotes[n] = true;
-        btn.classList.toggle('active', !!state.findNotes[n]);
+        if (state.findCycleEnabled) {
+          // Cycling always tracks a single note — clicking a different one
+          // restarts the lap starting from that note, per the circle order.
+          state.findNotes = {};
+          state.findNotes[n] = true;
+          state.findCycleStartNote = n;
+          renderNotePicker();
+        } else {
+          if (state.findNotes[n]) delete state.findNotes[n];
+          else state.findNotes[n] = true;
+          btn.classList.toggle('active', !!state.findNotes[n]);
+        }
         if (state.findListenMode) { resetFindProgress(); if (state.listening) stopMic(); }
         saveSettings();
         enterFindMode();
@@ -2037,6 +2236,10 @@
     Array.prototype.forEach.call(el.findRevealSwitch.querySelectorAll('button'), function (b) {
       b.classList.toggle('active', (b.getAttribute('data-reveal') === 'listen') === state.findListenMode);
     });
+    Array.prototype.forEach.call(el.findCycleSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', (b.getAttribute('data-cycle') === 'on') === state.findCycleEnabled);
+    });
+    el.findCycleField.style.display = (state.mode === 'find' && state.findListenMode) ? 'block' : 'none';
     updateLegend();
 
     // Play/tap modes already cue everything on the fretboard itself — the
@@ -2045,11 +2248,12 @@
     // tune and find modes still need it (tuner needle/readings, find-mode
     // instructions).
     el.readoutPanel.style.display = (state.mode === 'mic' || state.mode === 'tap') ? 'none' : '';
+    el.readStaffPanel.style.display = state.mode === 'read' ? 'block' : 'none';
 
     // The mic "Start listening" control is shared by every mode that needs
-    // live pitch matching: Play it, Tune, and Find when it's in the
+    // live pitch matching: Play it, Read it, Tune, and Find when it's in the
     // find-by-ear (gamified) sub-mode.
-    el.micStartField.style.display = (state.mode === 'mic' || state.mode === 'tune' || (state.mode === 'find' && state.findListenMode)) ? 'block' : 'none';
+    el.micStartField.style.display = (state.mode === 'mic' || state.mode === 'read' || state.mode === 'tune' || (state.mode === 'find' && state.findListenMode)) ? 'block' : 'none';
 
     if (state.mode === 'tune') {
       enterTuneMode();
@@ -2166,6 +2370,14 @@
       NOTE_NAMES_SHARP.forEach(function (n) {
         if (n.indexOf('#') !== -1) delete state.findNotes[n];
       });
+      // The circle of fifths needs all 12 notes, so naturals-only and
+      // cycling can't coexist.
+      if (state.findCycleEnabled) {
+        state.findCycleEnabled = false;
+        Array.prototype.forEach.call(el.findCycleSwitch.querySelectorAll('button'), function (b) {
+          b.classList.toggle('active', b.getAttribute('data-cycle') === 'off');
+        });
+      }
     }
     saveSettings();
     renderNotePicker();
@@ -2186,6 +2398,37 @@
 
   el.findResetBtn.addEventListener('click', function () {
     resetFindProgress();
+    enterFindMode();
+  });
+
+  el.findCycleSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-cycle]');
+    if (!btn) return;
+    var on = btn.getAttribute('data-cycle') === 'on';
+    if (on === state.findCycleEnabled) return;
+    state.findCycleEnabled = on;
+    Array.prototype.forEach.call(el.findCycleSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    if (on) {
+      // The circle needs all 12 notes — switch off the naturals-only filter
+      // if it's on, and collapse whatever's selected down to one starting note.
+      if (state.noteFilterMode === 'naturals') {
+        state.noteFilterMode = 'chromatic';
+        Array.prototype.forEach.call(el.noteFilterSwitch.querySelectorAll('button'), function (b) {
+          b.classList.toggle('active', b.getAttribute('data-filter') === 'chromatic');
+        });
+      }
+      var current = selectedFindNotes();
+      var startNote = current.length > 0 ? current[0] : 'C';
+      state.findNotes = {};
+      state.findNotes[startNote] = true;
+      state.findCycleStartNote = startNote;
+      renderNotePicker();
+    }
+    if (state.listening) stopMic();
+    resetFindProgress();
+    saveSettings();
     enterFindMode();
   });
 
