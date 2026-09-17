@@ -460,6 +460,15 @@
     animation: find-pop 420ms ease;
   }
 
+  .find-list-item.current-string {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent) inset;
+  }
+
+  .find-list-item.pending-string {
+    opacity: 0.45;
+  }
+
   @keyframes find-pop {
     0% { transform: scale(1); }
     35% { transform: scale(1.25); }
@@ -1020,6 +1029,8 @@
     mode: 'mic', // 'mic' | 'tap' | 'tune' | 'find'
     findListenMode: false, // false = reveal instantly, true = find-by-ear gamified mode
     findFound: {}, // "stringIndex-fret" -> true, positions found so far in find-by-ear mode
+    findStringPos: 0, // current string under test in find-by-ear mode, 0 = Low E (6th) .. 5 = High e (1st)
+    findCooldown: false, // true briefly after completing a string, while the flash plays before advancing
     findMatchStreak: 0,
     findMatchKey: null,
     listening: false,
@@ -1726,11 +1737,16 @@
     // top-to-bottom order — each string listed once with all of its occurrences,
     // each occurrence coloured by which selected note it belongs to. In
     // find-by-ear mode, occurrences not yet played show as locked "?" chips
-    // instead of giving away the fret.
+    // instead of giving away the fret, and the row for the string currently
+    // being tested (working 6th string down to 1st) is highlighted.
     var t = tuning();
     for (var si = 5; si >= 0; si--) {
       var row = document.createElement('div');
-      row.className = 'find-list-item';
+      var rowState = '';
+      if (listenMode) {
+        rowState = si < state.findStringPos ? ' done-string' : si === state.findStringPos ? ' current-string' : ' pending-string';
+      }
+      row.className = 'find-list-item' + rowState;
 
       var stringSpan = document.createElement('span');
       stringSpan.className = 'fli-string';
@@ -1783,25 +1799,94 @@
     state.findFound = {};
     state.findMatchStreak = 0;
     state.findMatchKey = null;
+    state.findCooldown = false;
+    state.findStringPos = 0;
+    if (state.findListenMode) advanceFindStringIfEmpty();
   }
 
-  // Checks a live pitch reading against every not-yet-found occurrence of the
-  // selected note(s); reveals a position once the same match holds steady for
-  // a few frames (mirrors the tolerance/debounce used for "Play it" mode).
-  // If a pitch happens to match more than one remaining occurrence at once —
-  // e.g. two strings tuned to the exact same note — mic mode can't tell which
-  // string was actually played (see the "Play it" help text), so all of the
-  // matching positions are revealed together.
-  function handleFindPitch(freq) {
+  // Skips state.findStringPos forward past any string whose occurrences of
+  // the selected note(s) are all already found — including a string with no
+  // occurrences at all, which is vacuously "all found". Used both to skip
+  // past strings the target note doesn't appear on when a round starts, and
+  // to move on to the next string once the current one is fully found.
+  function advanceFindStringIfEmpty() {
     var byString = allFindOccurrences();
-    var total = 0;
-    var remaining = [];
-    byString.forEach(function (occs) {
-      occs.forEach(function (o) { total++; if (!state.findFound[o.key]) remaining.push(o); });
-    });
+    while (state.findStringPos < 6 && byString[state.findStringPos].every(function (o) { return state.findFound[o.key]; })) {
+      state.findStringPos++;
+    }
+  }
+
+  function findOrdinal(tuningIdx) {
+    var n = 6 - tuningIdx; // tuning index 0 = Low E = 6th string ... 5 = High e = 1st string
+    var suffix = (n === 1) ? 'st' : (n === 2) ? 'nd' : (n === 3) ? 'rd' : 'th';
+    return n + suffix;
+  }
+
+  // Sets the instruction text, the watermarked note-to-find on the fretboard,
+  // and the highlighted target string, to match state.findStringPos — the
+  // same "one string, one note, highlighted" language as Play it/Tap it mode,
+  // just walking 6th string down to 1st instead of picking randomly.
+  function promptCurrentFindString() {
+    var notes = selectedFindNotes();
+    if (notes.length === 0) {
+      highlightTargetString(-1);
+      if (watermarkEl) { watermarkEl.classList.remove('wm-good', 'wm-bad'); watermarkEl.textContent = ''; }
+      el.instruction.textContent = 'Choose one or more notes to find them across the neck';
+      return;
+    }
+    if (state.findStringPos >= 6) {
+      highlightTargetString(-1);
+      if (watermarkEl) { watermarkEl.classList.remove('wm-bad'); watermarkEl.classList.add('wm-good'); watermarkEl.textContent = '✓'; }
+      el.instruction.textContent = 'All found! \u{1F389}';
+      return;
+    }
+    var t = tuning();
+    var tuningIdx = state.findStringPos;
+    highlightTargetString(tuningIdx);
+    if (watermarkEl) {
+      watermarkEl.classList.remove('wm-good', 'wm-bad');
+      watermarkEl.textContent = notes.join(' / ');
+    }
+    var noteHtml = notes.map(function (n) {
+      return '<span style="color:' + NOTE_COLORS[n].hex + ';">' + n + '</span>';
+    }).join('<span style="color:var(--text-faint);"> · </span>');
+    el.instruction.innerHTML = 'Find ' + noteHtml + ' on the <b>' + t.labels[tuningIdx] + '</b> string (' + findOrdinal(tuningIdx) + ')';
+  }
+
+  function onFindStringComplete() {
+    flashReadout('good');
+    state.findCooldown = true;
+    setTimeout(function () {
+      state.findCooldown = false;
+      if (!state.listening || state.mode !== 'find' || !state.findListenMode) return;
+      advanceFindStringIfEmpty();
+      promptCurrentFindString();
+    }, 650);
+  }
+
+  // Checks a live pitch reading against the not-yet-found occurrence(s) of
+  // the selected note(s) on the ONE string currently being tested (working
+  // 6th string down to 1st) — not the whole neck. Since a single string never
+  // has two frets producing the same pitch, this is fully unambiguous: unlike
+  // the old "any string" approach, a match can never be confused with a
+  // different string (see the "Play it" mode help text for that limitation
+  // elsewhere in the app).
+  function handleFindPitch(freq) {
+    if (state.findCooldown) return;
+    var notes = selectedFindNotes();
+    if (notes.length === 0 || state.findStringPos >= 6) {
+      el.meterFreq.textContent = notes.length === 0 ? '…listening' : 'All found!';
+      el.meterNeedle.classList.remove('good');
+      state.findMatchStreak = 0;
+      state.findMatchKey = null;
+      return;
+    }
+
+    var byString = allFindOccurrences();
+    var remaining = byString[state.findStringPos].filter(function (o) { return !state.findFound[o.key]; });
 
     if (freq === -1 || remaining.length === 0) {
-      el.meterFreq.textContent = (total > 0 && remaining.length === 0) ? 'All found!' : '…listening';
+      el.meterFreq.textContent = '…listening';
       el.meterNeedle.classList.remove('good');
       state.findMatchStreak = 0;
       state.findMatchKey = null;
@@ -1814,28 +1899,27 @@
     el.meterNeedle.style.left = (50 + pct) + '%';
     el.meterFreq.textContent = freq.toFixed(1) + ' Hz · nearest ' + nameFromMidi(nearestMidi).label;
 
-    var matches = remaining.filter(function (o) {
-      return Math.abs(centsOff(freq, freqFromMidi(o.midi))) <= MATCH_TOLERANCE_CENTS;
-    });
+    var match = null;
+    for (var i = 0; i < remaining.length; i++) {
+      if (Math.abs(centsOff(freq, freqFromMidi(remaining[i].midi))) <= MATCH_TOLERANCE_CENTS) { match = remaining[i]; break; }
+    }
 
-    if (matches.length > 0) {
+    if (match) {
       el.meterNeedle.classList.add('good');
-      var matchSig = matches.map(function (m) { return m.key; }).sort().join(',');
-      if (state.findMatchKey === matchSig) {
+      if (state.findMatchKey === match.key) {
         state.findMatchStreak++;
       } else {
-        state.findMatchKey = matchSig;
+        state.findMatchKey = match.key;
         state.findMatchStreak = 1;
       }
       if (state.findMatchStreak >= MATCH_FRAMES_NEEDED) {
-        matches.forEach(function (o) { state.findFound[o.key] = true; });
+        state.findFound[match.key] = true;
         state.findMatchStreak = 0;
         state.findMatchKey = null;
         renderFindMarkers();
-        flashFindChips(matches);
-        if (remaining.length === matches.length) {
-          el.instruction.textContent = 'All found! \u{1F389}';
-        }
+        flashFindChips([match]);
+        var stringDone = byString[state.findStringPos].every(function (o) { return state.findFound[o.key]; });
+        if (stringDone) onFindStringComplete();
       }
     } else {
       el.meterNeedle.classList.remove('good');
@@ -1855,23 +1939,26 @@
   }
 
   function enterFindMode() {
-    highlightTargetString(-1);
     el.targetSub.textContent = '';
     var notes = selectedFindNotes();
     if (notes.length > 0) {
       el.targetNote.innerHTML = notes.map(function (n) {
         return '<span style="color:' + NOTE_COLORS[n].hex + ';">' + n + '</span>';
       }).join('<span style="color:var(--text-faint);"> · </span>');
-      if (state.findListenMode) {
-        el.instruction.textContent = (notes.length === 1 ? 'Play every ' + notes[0] : 'Play every ' + notes.join(', ')) + ' you can find on the neck';
-      } else {
-        el.instruction.textContent = (notes.length === 1 ? 'Every ' + notes[0] : 'Every ' + notes.join(', ')) + ' on the neck is marked below';
-      }
     } else {
       el.targetNote.textContent = '—';
-      el.instruction.textContent = 'Choose one or more notes to find them across the neck';
     }
     el.targetNote.className = 'readout-note';
+
+    if (state.findListenMode) {
+      promptCurrentFindString();
+    } else {
+      highlightTargetString(-1);
+      if (watermarkEl) { watermarkEl.classList.remove('wm-good', 'wm-bad'); watermarkEl.textContent = ''; }
+      el.instruction.textContent = notes.length === 0
+        ? 'Choose one or more notes to find them across the neck'
+        : (notes.length === 1 ? 'Every ' + notes[0] : 'Every ' + notes.join(', ')) + ' on the neck is marked below';
+    }
     renderFindMarkers();
     updateLegend();
   }
