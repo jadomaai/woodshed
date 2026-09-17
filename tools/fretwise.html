@@ -1031,6 +1031,7 @@
     findFound: {}, // "stringIndex-fret" -> true, positions found so far in find-by-ear mode
     findStringPos: 0, // current string under test in find-by-ear mode, 0 = Low E (6th) .. 5 = High e (1st)
     findCooldown: false, // true briefly after completing a string, while the flash plays before advancing
+    findAwaitingSilence: false, // true right after advancing to a new string, until the previous note stops ringing
     findMatchStreak: 0,
     findMatchKey: null,
     listening: false,
@@ -1800,6 +1801,7 @@
     state.findMatchStreak = 0;
     state.findMatchKey = null;
     state.findCooldown = false;
+    state.findAwaitingSilence = false;
     state.findStringPos = 0;
     if (state.findListenMode) advanceFindStringIfEmpty();
   }
@@ -1861,6 +1863,13 @@
       if (!state.listening || state.mode !== 'find' || !state.findListenMode) return;
       advanceFindStringIfEmpty();
       promptCurrentFindString();
+      // Adjacent strings are often a fixed interval apart (5 frets, or 4 for
+      // G-B), so the note that just completed a string is frequently the
+      // exact same pitch as the next string's target too. Without this, the
+      // previous note still ringing out would immediately "find" the next
+      // string's occurrence before it was ever actually played there. So
+      // require one silent moment before we start matching again.
+      if (state.findStringPos < 6) state.findAwaitingSilence = true;
     }, 650);
   }
 
@@ -1880,6 +1889,18 @@
       state.findMatchStreak = 0;
       state.findMatchKey = null;
       return;
+    }
+
+    if (state.findAwaitingSilence) {
+      if (freq === -1) {
+        state.findAwaitingSilence = false;
+      } else {
+        el.meterFreq.textContent = '…let that note ring out first';
+        el.meterNeedle.classList.remove('good');
+        state.findMatchStreak = 0;
+        state.findMatchKey = null;
+        return;
+      }
     }
 
     var byString = allFindOccurrences();
