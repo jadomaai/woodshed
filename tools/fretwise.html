@@ -1023,8 +1023,12 @@
     var pos = staffPositionForLetterOctave(nm.name.charAt(0), nm.octave);
     var ledgerBelow = Math.max(0, Math.ceil((0 - pos) / 2));
     var ledgerAbove = Math.max(0, Math.ceil((pos - 8) / 2));
-    var topPad = 30 + ledgerAbove * 11;
-    var bottomPad = 34 + ledgerBelow * 11;
+    // Base padding matches Sight Reading's own constants (44 top / 46 bottom) —
+    // the treble clef glyph itself needs that much headroom above the stave's
+    // top line even for a note with no ledger lines above it; a smaller base
+    // clipped the clef's curl off the top of the panel.
+    var topPad = 44 + ledgerAbove * 11;
+    var bottomPad = 46 + ledgerBelow * 11;
     var height = topPad + 40 + bottomPad;
 
     var width = Math.max(220, (el.readStaffFrame.clientWidth || 260) - 4);
