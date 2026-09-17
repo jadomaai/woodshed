@@ -445,6 +445,60 @@
     font-style: italic;
   }
 
+  /* ---------- Find-by-ear (gamified) mode ---------- */
+
+  .fli-occ.locked .fret,
+  .fli-occ.locked .note {
+    color: var(--text-faint);
+  }
+
+  .fli-occ.locked .note::before {
+    content: '?';
+  }
+
+  .fli-occ.just-found {
+    animation: find-pop 420ms ease;
+  }
+
+  @keyframes find-pop {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.25); }
+    100% { transform: scale(1); }
+  }
+
+  .find-progress-row {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .find-progress {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  .find-progress.all-found {
+    color: var(--good);
+  }
+
+  .btn-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text-dim);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .btn-link:hover { color: var(--text); }
+
   /* ---------- Fretboard ---------- */
 
   .fretboard-wrap {
@@ -760,6 +814,15 @@
         <div class="field" id="findControls" style="display:none;">
           <label class="field-label">Pick notes to find</label>
           <div class="note-picker" id="notePicker"></div>
+          <label class="field-label" style="margin-top:14px;">Reveal</label>
+          <div class="segmented" id="findRevealSwitch">
+            <button type="button" data-reveal="instant" class="active">Show me</button>
+            <button type="button" data-reveal="listen">Find by ear</button>
+          </div>
+          <div class="find-progress-row" id="findProgressRow" style="display:none;">
+            <span class="find-progress" id="findProgress">0 of 0 found</span>
+            <button type="button" class="btn-link" id="findResetBtn">Reset</button>
+          </div>
         </div>
       </div>
 
@@ -938,6 +1001,7 @@
         showFretMarkers: state.showFretMarkers,
         findNotes: Object.keys(state.findNotes),
         noteFilterMode: state.noteFilterMode,
+        findListenMode: state.findListenMode,
         mode: state.mode
       }));
     } catch (e) { /* ignore */ }
@@ -954,6 +1018,10 @@
     findNotes: {}, // note name -> true, e.g. { C: true, 'D#': true }
     noteFilterMode: 'chromatic', // 'chromatic' | 'naturals'
     mode: 'mic', // 'mic' | 'tap' | 'tune' | 'find'
+    findListenMode: false, // false = reveal instantly, true = find-by-ear gamified mode
+    findFound: {}, // "stringIndex-fret" -> true, positions found so far in find-by-ear mode
+    findMatchStreak: 0,
+    findMatchKey: null,
     listening: false,
     target: null, // { stringIndex, fret, midi }
     correct: 0,
@@ -980,6 +1048,7 @@
       });
     }
     if (saved.noteFilterMode === 'chromatic' || saved.noteFilterMode === 'naturals') state.noteFilterMode = saved.noteFilterMode;
+    if (typeof saved.findListenMode === 'boolean') state.findListenMode = saved.findListenMode;
     if (saved.mode === 'mic' || saved.mode === 'tap' || saved.mode === 'tune' || saved.mode === 'find') state.mode = saved.mode;
   }
   if (state.noteFilterMode === 'naturals') {
@@ -1012,6 +1081,10 @@
     markerSwitch: document.getElementById('markerSwitch'),
     tunerStrings: document.getElementById('tunerStrings'),
     findControls: document.getElementById('findControls'),
+    findRevealSwitch: document.getElementById('findRevealSwitch'),
+    findProgressRow: document.getElementById('findProgressRow'),
+    findProgress: document.getElementById('findProgress'),
+    findResetBtn: document.getElementById('findResetBtn'),
     notePicker: document.getElementById('notePicker'),
     noteFilterSwitch: document.getElementById('noteFilterSwitch'),
     findList: document.getElementById('findList'),
@@ -1415,6 +1488,12 @@
       return;
     }
 
+    if (state.mode === 'find') {
+      handleFindPitch(freq);
+      state.rafId = requestAnimationFrame(pitchLoop);
+      return;
+    }
+
     if (freq !== -1 && state.target) {
       var targetFreq = freqFromMidi(state.target.midi);
       var cents = centsOff(freq, targetFreq);
@@ -1588,6 +1667,35 @@
     fretPositionMarkers[key] = g;
   }
 
+  // Every occurrence of the selected note(s) on the neck, grouped by string
+  // (tuning-index order, 0 = Low E ... 5 = High e). Shared by both the
+  // instant "Show me" reveal and the "Find by ear" gamified reveal below.
+  function allFindOccurrences() {
+    var t = tuning();
+    var byString = [[], [], [], [], [], []];
+    for (var s = 0; s < 6; s++) {
+      for (var f = 0; f <= state.maxFret; f++) {
+        var midi = midiForPosition(t, s, f);
+        var nm = nameFromMidi(midi);
+        if (state.findNotes[nm.name]) {
+          byString[s].push({ stringIndex: s, fret: f, midi: midi, label: nm.label, note: nm.name, key: s + '-' + f });
+        }
+      }
+    }
+    return byString;
+  }
+
+  function findTotalAndFoundCounts(byString) {
+    var total = 0, found = 0;
+    byString.forEach(function (occs) {
+      occs.forEach(function (o) {
+        total++;
+        if (state.findFound[o.key]) found++;
+      });
+    });
+    return { total: total, found: found };
+  }
+
   function renderFindMarkers() {
     clearFretMarkers();
     el.findList.innerHTML = '';
@@ -1595,26 +1703,31 @@
     var notes = selectedFindNotes();
     if (notes.length === 0) {
       el.findList.style.display = 'none';
+      el.findProgressRow.style.display = 'none';
       return;
     }
 
-    var t = tuning();
-    var byString = [[], [], [], [], [], []]; // indexed by tuning index, 0 = Low E ... 5 = High e
+    var byString = allFindOccurrences();
+    var listenMode = state.findListenMode;
 
-    for (var s = 0; s < 6; s++) {
-      for (var f = 0; f <= state.maxFret; f++) {
-        var midi = midiForPosition(t, s, f);
-        var nm = nameFromMidi(midi);
-        if (state.findNotes[nm.name]) {
-          byString[s].push({ fret: f, label: nm.label, note: nm.name });
-          drawFindMarker(s, f, nm.label, nm.name);
-        }
-      }
+    if (!listenMode) {
+      byString.forEach(function (occs) {
+        occs.forEach(function (o) { drawFindMarker(o.stringIndex, o.fret, o.label, o.note); });
+      });
+    } else {
+      byString.forEach(function (occs) {
+        occs.forEach(function (o) {
+          if (state.findFound[o.key]) drawFindMarker(o.stringIndex, o.fret, o.label, o.note);
+        });
+      });
     }
 
     // One row per string, high e first down to low E, matching the fretboard's
     // top-to-bottom order — each string listed once with all of its occurrences,
-    // each occurrence coloured by which selected note it belongs to.
+    // each occurrence coloured by which selected note it belongs to. In
+    // find-by-ear mode, occurrences not yet played show as locked "?" chips
+    // instead of giving away the fret.
+    var t = tuning();
     for (var si = 5; si >= 0; si--) {
       var row = document.createElement('div');
       row.className = 'find-list-item';
@@ -1633,15 +1746,19 @@
         occWrap.appendChild(empty);
       } else {
         byString[si].forEach(function (o) {
+          var isFound = !listenMode || state.findFound[o.key];
           var occ = document.createElement('span');
-          occ.className = 'fli-occ';
+          occ.className = 'fli-occ' + (isFound ? '' : ' locked');
+          occ.setAttribute('data-key', o.key);
           var fretSpan = document.createElement('span');
           fretSpan.className = 'fret';
-          fretSpan.textContent = o.fret === 0 ? 'open' : 'fret ' + o.fret;
+          fretSpan.textContent = isFound ? (o.fret === 0 ? 'open' : 'fret ' + o.fret) : '—';
           var noteSpan = document.createElement('span');
           noteSpan.className = 'note';
-          noteSpan.style.color = NOTE_COLORS[o.note].hex;
-          noteSpan.textContent = o.label;
+          if (isFound) {
+            noteSpan.style.color = NOTE_COLORS[o.note].hex;
+            noteSpan.textContent = o.label;
+          }
           occ.appendChild(fretSpan);
           occ.appendChild(noteSpan);
           occWrap.appendChild(occ);
@@ -1651,6 +1768,90 @@
       el.findList.appendChild(row);
     }
     el.findList.style.display = 'flex';
+
+    if (listenMode) {
+      var counts = findTotalAndFoundCounts(byString);
+      el.findProgressRow.style.display = 'flex';
+      el.findProgress.textContent = counts.found + ' of ' + counts.total + ' found';
+      el.findProgress.classList.toggle('all-found', counts.total > 0 && counts.found === counts.total);
+    } else {
+      el.findProgressRow.style.display = 'none';
+    }
+  }
+
+  function resetFindProgress() {
+    state.findFound = {};
+    state.findMatchStreak = 0;
+    state.findMatchKey = null;
+  }
+
+  // Checks a live pitch reading against every not-yet-found occurrence of the
+  // selected note(s); reveals a position once the same match holds steady for
+  // a few frames (mirrors the tolerance/debounce used for "Play it" mode).
+  // If a pitch happens to match more than one remaining occurrence at once —
+  // e.g. two strings tuned to the exact same note — mic mode can't tell which
+  // string was actually played (see the "Play it" help text), so all of the
+  // matching positions are revealed together.
+  function handleFindPitch(freq) {
+    var byString = allFindOccurrences();
+    var total = 0;
+    var remaining = [];
+    byString.forEach(function (occs) {
+      occs.forEach(function (o) { total++; if (!state.findFound[o.key]) remaining.push(o); });
+    });
+
+    if (freq === -1 || remaining.length === 0) {
+      el.meterFreq.textContent = (total > 0 && remaining.length === 0) ? 'All found!' : '…listening';
+      el.meterNeedle.classList.remove('good');
+      state.findMatchStreak = 0;
+      state.findMatchKey = null;
+      return;
+    }
+
+    var nearestMidi = Math.round(69 + 12 * Math.log2(freq / 440));
+    var nearestFreq = freqFromMidi(nearestMidi);
+    var pct = Math.max(-50, Math.min(50, centsOff(freq, nearestFreq)));
+    el.meterNeedle.style.left = (50 + pct) + '%';
+    el.meterFreq.textContent = freq.toFixed(1) + ' Hz · nearest ' + nameFromMidi(nearestMidi).label;
+
+    var matches = remaining.filter(function (o) {
+      return Math.abs(centsOff(freq, freqFromMidi(o.midi))) <= MATCH_TOLERANCE_CENTS;
+    });
+
+    if (matches.length > 0) {
+      el.meterNeedle.classList.add('good');
+      var matchSig = matches.map(function (m) { return m.key; }).sort().join(',');
+      if (state.findMatchKey === matchSig) {
+        state.findMatchStreak++;
+      } else {
+        state.findMatchKey = matchSig;
+        state.findMatchStreak = 1;
+      }
+      if (state.findMatchStreak >= MATCH_FRAMES_NEEDED) {
+        matches.forEach(function (o) { state.findFound[o.key] = true; });
+        state.findMatchStreak = 0;
+        state.findMatchKey = null;
+        renderFindMarkers();
+        flashFindChips(matches);
+        if (remaining.length === matches.length) {
+          el.instruction.textContent = 'All found! \u{1F389}';
+        }
+      }
+    } else {
+      el.meterNeedle.classList.remove('good');
+      state.findMatchStreak = 0;
+      state.findMatchKey = null;
+    }
+  }
+
+  function flashFindChips(matches) {
+    matches.forEach(function (o) {
+      var chip = el.findList.querySelector('.fli-occ[data-key="' + o.key + '"]');
+      if (chip) {
+        chip.classList.add('just-found');
+        setTimeout(function () { chip.classList.remove('just-found'); }, 450);
+      }
+    });
   }
 
   function enterFindMode() {
@@ -1661,7 +1862,11 @@
       el.targetNote.innerHTML = notes.map(function (n) {
         return '<span style="color:' + NOTE_COLORS[n].hex + ';">' + n + '</span>';
       }).join('<span style="color:var(--text-faint);"> · </span>');
-      el.instruction.textContent = (notes.length === 1 ? 'Every ' + notes[0] : 'Every ' + notes.join(', ')) + ' on the neck is marked below';
+      if (state.findListenMode) {
+        el.instruction.textContent = (notes.length === 1 ? 'Play every ' + notes[0] : 'Play every ' + notes.join(', ')) + ' you can find on the neck';
+      } else {
+        el.instruction.textContent = (notes.length === 1 ? 'Every ' + notes[0] : 'Every ' + notes.join(', ')) + ' on the neck is marked below';
+      }
     } else {
       el.targetNote.textContent = '—';
       el.instruction.textContent = 'Choose one or more notes to find them across the neck';
@@ -1689,6 +1894,7 @@
         if (state.findNotes[n]) delete state.findNotes[n];
         else state.findNotes[n] = true;
         btn.classList.toggle('active', !!state.findNotes[n]);
+        if (state.findListenMode) { resetFindProgress(); if (state.listening) stopMic(); }
         saveSettings();
         enterFindMode();
       });
@@ -1720,6 +1926,9 @@
     el.tunerStrings.style.display = 'none';
     el.findList.style.display = 'none';
     el.findControls.style.display = state.mode === 'find' ? 'block' : 'none';
+    Array.prototype.forEach.call(el.findRevealSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', (b.getAttribute('data-reveal') === 'listen') === state.findListenMode);
+    });
     updateLegend();
 
     // Play/tap modes already cue everything on the fretboard itself — the
@@ -1728,6 +1937,11 @@
     // tune and find modes still need it (tuner needle/readings, find-mode
     // instructions).
     el.readoutPanel.style.display = (state.mode === 'mic' || state.mode === 'tap') ? 'none' : '';
+
+    // The mic "Start listening" control is shared by every mode that needs
+    // live pitch matching: Play it, Tune, and Find when it's in the
+    // find-by-ear (gamified) sub-mode.
+    el.micStartField.style.display = (state.mode === 'mic' || state.mode === 'tune' || (state.mode === 'find' && state.findListenMode)) ? 'block' : 'none';
 
     if (state.mode === 'tune') {
       enterTuneMode();
@@ -1787,7 +2001,6 @@
     Array.prototype.forEach.call(el.modeSwitch.querySelectorAll('button'), function (b) {
       b.classList.toggle('active', b === btn);
     });
-    el.micStartField.style.display = (mode === 'mic' || mode === 'tune') ? 'block' : 'none';
     if ((mode === 'tap' || mode === 'find') && state.listening) stopMic();
     saveSettings();
     buildFretboard();
@@ -1851,6 +2064,23 @@
     syncModeUI();
   });
 
+  el.findRevealSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-reveal]');
+    if (!btn) return;
+    var listen = btn.getAttribute('data-reveal') === 'listen';
+    if (listen === state.findListenMode) return;
+    state.findListenMode = listen;
+    if (!listen && state.listening) stopMic();
+    resetFindProgress();
+    saveSettings();
+    syncModeUI();
+  });
+
+  el.findResetBtn.addEventListener('click', function () {
+    resetFindProgress();
+    enterFindMode();
+  });
+
   /* ---------------- Init ---------------- */
 
   function init() {
@@ -1863,7 +2093,6 @@
     Array.prototype.forEach.call(el.noteFilterSwitch.querySelectorAll('button'), function (b) {
       b.classList.toggle('active', b.getAttribute('data-filter') === state.noteFilterMode);
     });
-    el.micStartField.style.display = (state.mode === 'mic' || state.mode === 'tune') ? 'block' : 'none';
     renderStringToggles();
     renderNotePicker();
     buildFretboard();
