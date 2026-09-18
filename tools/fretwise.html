@@ -918,7 +918,7 @@
         <div class="help-note" id="helpNote">
           <strong>Play it</strong>: the readout names a note and highlights a string — find that note on that string and play it. Fretwise listens through your mic and checks pitch <em>and</em> octave, so it only accepts the note in that string's range. It can't tell which physical string you plucked, so an identical pitch on a neighbouring string will also register — that's the one gap in mic mode.
           <br><br>
-          <strong>Read it</strong>: a note appears on the staff — no string is hinted, no name is given. Find and play it anywhere on the neck; a ring on the fretboard confirms exactly where it was played, to reinforce what Find by ear teaches. Same mic caveat as Play it above.
+          <strong>Read it</strong>: a note appears on the staff, written the same way standard guitar sheet music writes it — an octave higher than it actually sounds. Find and play it anywhere on the neck; a ring on the fretboard confirms exactly where it was played, to reinforce what Find by ear teaches. Same mic caveat as Play it above.
           <br><br>
           <strong>Tune</strong>: pluck each open string and Fretwise matches it to the nearest string in your chosen tuning, showing how sharp or flat it is so you can bring the guitar to pitch before practising.
           <br><br>
@@ -996,15 +996,21 @@
   }
 
   /* ---------------- Read it mode: draws one note on a treble-clef staff ----------------
-     Pitch is shown at its literal (concert) pitch — the same convention the
-     Sight Reading tool uses — rather than the octave-up transposition real
-     guitar sheet music uses, since the point here is a direct, unambiguous
-     link to the exact fretboard pitch it's asking for. */
+     Guitar music is conventionally written a full octave higher than it
+     actually sounds — every printed guitar part, method book and chart uses
+     this convention, so that's what gets drawn here too (see
+     GUITAR_NOTATION_OCTAVE_SHIFT below, applied by the caller in
+     nextRound()). The mic still matches against the real, un-shifted
+     sounding pitch — only the picture on the staff is transposed. */
+  // Semitones added to the actual sounding pitch to get the pitch that
+  // should be DRAWN on the staff, matching standard guitar notation.
+  var GUITAR_NOTATION_OCTAVE_SHIFT = 12;
   // Staff position 0 = bottom line of the treble staff (E4), same convention
-  // Sight Reading uses. Guitar range runs from open low E (E2, well below
-  // the staff) to well above the top line on the higher strings/frets, so
-  // the panel has to grow tall enough for whichever note is currently shown
-  // instead of a fixed height — otherwise low notes get clipped.
+  // Sight Reading uses. Once notes are shown at the standard guitar-notation
+  // octave (see above), guitar's range sits much closer to the staff than
+  // its literal sounding pitch would — open low E draws as E3, not E2 — but
+  // the panel still sizes itself to whichever note is currently shown rather
+  // than assuming a fixed range, since higher positions still push it wide.
   var STAFF_LETTER_CYCLE = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
   function staffPositionForLetterOctave(letter, octave) {
     var e4Index = 4 * 7 + STAFF_LETTER_CYCLE.indexOf('E');
@@ -1497,7 +1503,15 @@
       // (already picked above) or the mic-matching loop down with it — a
       // blank/broken staff is recoverable, a mic that silently stops isn't.
       try {
-        renderReadNote(state.target.midi);
+        // Guitar notation is written a full octave above how it actually
+        // sounds — standard practice in every guitar method book and chart
+        // — so the note printed here has to be state.target.midi + 12 even
+        // though the mic match below still listens for the real, un-shifted
+        // pitch. Drawing it at the literal sounding pitch (what this used to
+        // do) put every note an octave lower on the page than a guitarist
+        // would ever see it written, which is what made "the A in the
+        // second space" not line up with fret 2 on the G string as expected.
+        renderReadNote(state.target.midi + GUITAR_NOTATION_OCTAVE_SHIFT);
       } catch (err) {
         console.error('renderReadNote failed:', err);
         if (el.readStaffFrame) el.readStaffFrame.textContent = 'Could not draw the staff — the note is still live, so keep listening.';

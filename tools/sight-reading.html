@@ -319,7 +319,7 @@
         <div class="help-note" id="helpNote">
           <strong>Play along</strong> just keeps time with a click while you read &mdash; nothing is graded, no mic needed.
           <br><br>
-          <strong>Record &amp; grade</strong> counts you in, clicks through the piece while it records you, then checks each note afterwards: it looks for a pluck near where that note should fall and checks the pitch. It only judges pitch and rough timing, not tone or which string you used.
+          <strong>Record &amp; grade</strong> counts you in, clicks through the piece while it records you, then checks each note afterwards: it looks for a pluck near where that note should fall and checks the pitch. It only judges pitch and rough timing, not tone or which string you used. The staff is written the same way standard guitar sheet music is — an octave higher than it actually sounds — and grading listens for the real sounding pitch, exactly like reading from a guitar chart.
           <br><br>
           This is a first cut at correctness-checking &mdash; live, note-by-note feedback while you play (rather than a report afterwards) is a possible future addition.
         </div>
@@ -371,6 +371,17 @@
   }
 
   function freqFromMidi(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+
+  // Guitar music is conventionally written a full octave higher than it
+  // actually sounds — every printed guitar part, method book and chart uses
+  // this convention. The notes on this staff are drawn at their literal,
+  // written pitch (unchanged) so the page looks exactly like real guitar
+  // sheet music, but when grading a live-mic take, the pitch actually
+  // expected to sound is one octave BELOW what's printed — dividing the
+  // written frequency by 2 does that exactly. Nothing here changes what's
+  // drawn; it only changes what the mic is asked to match.
+  var GUITAR_NOTATION_OCTAVE_SHIFT = 12;
+  function soundingFreqFromWrittenFreq(writtenFreq) { return writtenFreq / Math.pow(2, GUITAR_NOTATION_OCTAVE_SHIFT / 12); }
 
   function noteFrequency(letter, accidental, octave) {
     var semitone = NATURAL_SEMITONE[letter] + (accidental === '#' ? 1 : accidental === 'b' ? -1 : 0);
@@ -513,7 +524,10 @@
           out.accidental = accidental;
           out.keyStr = lo.letter.toLowerCase() + accidental + '/' + lo.octave;
           out.freq = noteFrequency(lo.letter, accidental, lo.octave);
-          gradable.push({ tick: absoluteTick, freq: out.freq, barIndex: b, segIndex: s });
+          // Grade against the actual sounding pitch (an octave below what's
+          // printed), not the written pitch itself — see
+          // soundingFreqFromWrittenFreq() above.
+          gradable.push({ tick: absoluteTick, freq: soundingFreqFromWrittenFreq(out.freq), barIndex: b, segIndex: s });
         }
         barOut.push(out);
         absoluteTick += seg.ticks;
