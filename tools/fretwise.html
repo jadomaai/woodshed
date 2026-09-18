@@ -818,7 +818,7 @@
         </div>
       </div>
 
-      <div class="panel" style="margin-top:18px;">
+      <div class="panel" id="fretboardPanel" style="margin-top:18px;">
         <h2>Fretboard</h2>
         <div class="fretboard-wrap">
           <div class="fretboard-frame">
@@ -842,6 +842,7 @@
             <button type="button" data-mode="mic" class="active">Play it</button>
             <button type="button" data-mode="tap">Tap it</button>
             <button type="button" data-mode="read">Read it</button>
+            <button type="button" data-mode="violin">Violin</button>
             <button type="button" data-mode="tune">Tune</button>
             <button type="button" data-mode="find">Find</button>
           </div>
@@ -920,11 +921,13 @@
           <br><br>
           <strong>Read it</strong>: a note appears on the staff, written the same way standard guitar sheet music writes it — an octave higher than it actually sounds. Find and play it anywhere on the neck; a ring on the fretboard confirms exactly where it was played, to reinforce what Find by ear teaches. Same mic caveat as Play it above.
           <br><br>
+          <strong>Violin</strong>: the same drill as Read it, but for violin — a note appears on the staff at its literal, concert pitch (violin notation isn't transposed the way guitar's is), with no string or fretboard to point at. Play it on your violin anywhere it falls, and a correct match reveals the note name with a checkmark.
+          <br><br>
           <strong>Tune</strong>: pluck each open string and Fretwise matches it to the nearest string in your chosen tuning, showing how sharp or flat it is so you can bring the guitar to pitch before practising.
           <br><br>
           <strong>Find</strong>: pick one or more notes to see every place they sound within the current fret range, on all six strings, each marked with its exact pitch (e.g. D3) in that note's own colour. This mode ignores the strings-in-play filter, since the point is to see the whole neck.
           <br><br>
-          <strong>Notes</strong> (in Settings): Chromatic includes sharps/flats everywhere in the app; Naturals only restricts the practice target in Play it/Tap it/Read it and the note picker in Find to C D E F G A B.
+          <strong>Notes</strong> (in Settings): Chromatic includes sharps/flats everywhere in the app; Naturals only restricts the practice target in Play it/Tap it/Read it/Violin and the note picker in Find to C D E F G A B.
         </div>
       </div>
     </div>
@@ -938,9 +941,9 @@
 (function () {
   'use strict';
 
-  // Read it mode needs the notation engine; every other mode works fine
-  // without it, so a failed/missing load only disables that one mode rather
-  // than breaking the app.
+  // Read it and Violin modes need the notation engine; every other mode
+  // works fine without it, so a failed/missing load only disables those two
+  // modes rather than breaking the app.
   var VF = (window.Vex && window.Vex.Flow) || null;
 
   /* ---------------- Note / frequency utilities (validated against known guitar frequencies) ---------------- */
@@ -1074,6 +1077,30 @@
     voice.draw(context, stave);
   }
 
+  /* ---------------- Violin mode: same drill as Read it, pitched for violin ----------------
+     Unlike guitar, violin music is NOT written an octave away from how it
+     sounds — standard violin notation is at literal, concert pitch — so this
+     reuses renderReadNote() with no octave shift at all, and matches the
+     live mic against the exact midi shown. There's also no fretboard to ring
+     a correct answer on, so the confirmation is a checkmark plus the note
+     name revealed in the readout instead (see onMicMatch()). */
+  var VIOLIN_MIN_MIDI = 55; // G3, the open G string — violin's lowest note
+  var VIOLIN_MAX_MIDI = 79; // G5 — two octaves up, comfortable first-position
+                             // range on all four strings without shifting position
+  function pickViolinTarget() {
+    var naturalsOnly = state.noteFilterMode === 'naturals';
+    var candidates = [];
+    for (var m = VIOLIN_MIN_MIDI; m <= VIOLIN_MAX_MIDI; m++) {
+      if (naturalsOnly && nameFromMidi(m).name.indexOf('#') !== -1) continue;
+      candidates.push(m);
+    }
+    if (candidates.length === 0) {
+      for (var m2 = VIOLIN_MIN_MIDI; m2 <= VIOLIN_MAX_MIDI; m2++) candidates.push(m2);
+    }
+    var midi = candidates[Math.floor(Math.random() * candidates.length)];
+    return { midi: midi };
+  }
+
   /* ---------------- Pitch detection (autocorrelation, ACF2+ style) ---------------- */
   /* Validated in isolation against synthetic sine waves across 82Hz-660Hz: all detections within 3 cents. */
 
@@ -1156,7 +1183,7 @@
     tunedConfirmed: [false, false, false, false, false, false],
     findNotes: {}, // note name -> true, e.g. { C: true, 'D#': true }
     noteFilterMode: 'chromatic', // 'chromatic' | 'naturals'
-    mode: 'mic', // 'mic' | 'tap' | 'read' | 'tune' | 'find'
+    mode: 'mic', // 'mic' | 'tap' | 'read' | 'violin' | 'tune' | 'find'
     findListenMode: false, // false = reveal instantly, true = find-by-ear gamified mode
     findFound: {}, // "stringIndex-fret" -> true, positions found so far in find-by-ear mode
     findStringPos: 0, // current string under test in find-by-ear mode, 0 = Low E (6th) .. 5 = High e (1st)
@@ -1194,7 +1221,7 @@
     if (saved.noteFilterMode === 'chromatic' || saved.noteFilterMode === 'naturals') state.noteFilterMode = saved.noteFilterMode;
     if (typeof saved.findListenMode === 'boolean') state.findListenMode = saved.findListenMode;
     if (typeof saved.findCycleEnabled === 'boolean') state.findCycleEnabled = saved.findCycleEnabled;
-    if (saved.mode === 'mic' || saved.mode === 'tap' || saved.mode === 'read' || saved.mode === 'tune' || saved.mode === 'find') state.mode = saved.mode;
+    if (saved.mode === 'mic' || saved.mode === 'tap' || saved.mode === 'read' || saved.mode === 'violin' || saved.mode === 'tune' || saved.mode === 'find') state.mode = saved.mode;
   }
   if (state.noteFilterMode === 'naturals') {
     NOTE_NAMES_SHARP.forEach(function (n) {
@@ -1220,6 +1247,7 @@
     meterNeedle: document.getElementById('meterNeedle'),
     meterFreq: document.getElementById('meterFreq'),
     fretboardSvg: document.getElementById('fretboardSvg'),
+    fretboardPanel: document.getElementById('fretboardPanel'),
     readStaffPanel: document.getElementById('readStaffPanel'),
     readStaffFrame: document.getElementById('readStaffFrame'),
     readStaffSvg: document.getElementById('readStaffSvg'),
@@ -1486,9 +1514,30 @@
   function nextRound() {
     clearFretMarkers();
     state.matchStreakFrames = 0;
-    state.target = pickTarget();
+    // Violin has no strings/frets to pick from — just a pitch within its
+    // playable range — so it gets its own target-picker.
+    state.target = (state.mode === 'violin') ? pickViolinTarget() : pickTarget();
     var nm = nameFromMidi(state.target.midi);
-    var stringLabel = tuning().labels[state.target.stringIndex];
+    var stringLabel = state.target.stringIndex !== undefined ? tuning().labels[state.target.stringIndex] : '';
+
+    if (state.mode === 'violin') {
+      // Same drill as Read it — find and play the note shown, nothing named
+      // up front — but no string to highlight and no fretboard to watermark.
+      el.targetNote.textContent = '—';
+      el.targetNote.className = 'readout-note';
+      el.targetSub.textContent = '';
+      highlightTargetString(-1);
+      el.instruction.textContent = 'Play the note shown';
+      try {
+        // No octave shift here — violin notation is written at the pitch it
+        // actually sounds, unlike guitar (see GUITAR_NOTATION_OCTAVE_SHIFT).
+        renderReadNote(state.target.midi);
+      } catch (err) {
+        console.error('renderReadNote failed:', err);
+        if (el.readStaffFrame) el.readStaffFrame.textContent = 'Could not draw the staff — the note is still live, so keep listening.';
+      }
+      return;
+    }
 
     if (state.mode === 'read') {
       // The whole point is finding the position yourself from the notation —
@@ -1729,7 +1778,22 @@
       el.readStaffFrame.classList.add('flash-good');
       setTimeout(function () { el.readStaffFrame.classList.remove('flash-good'); }, 700);
     }
-    markPosition(state.target.stringIndex, state.target.fret, 'good');
+    // Violin has no fretboard to ring a correct answer on, so the
+    // confirmation is a checkmark plus the note name, revealed only now —
+    // same "nothing named up front" rule as Read it, just a different way
+    // of confirming since there's no neck to point at.
+    if (state.mode === 'violin') {
+      var violinNm = nameFromMidi(state.target.midi);
+      el.targetNote.textContent = '✓ ' + violinNm.label;
+      el.targetNote.className = 'readout-note state-good';
+      if (el.readStaffFrame) {
+        el.readStaffFrame.classList.add('flash-good');
+        setTimeout(function () { el.readStaffFrame.classList.remove('flash-good'); }, 700);
+      }
+    }
+    if (state.target.stringIndex !== undefined) {
+      markPosition(state.target.stringIndex, state.target.fret, 'good');
+    }
     var target = state.target;
     state.target = null; // pause matching during cooldown
     setTimeout(function () {
@@ -2292,12 +2356,16 @@
     // tune and find modes still need it (tuner needle/readings, find-mode
     // instructions).
     el.readoutPanel.style.display = (state.mode === 'mic' || state.mode === 'tap') ? 'none' : '';
-    el.readStaffPanel.style.display = state.mode === 'read' ? 'block' : 'none';
+    el.readStaffPanel.style.display = (state.mode === 'read' || state.mode === 'violin') ? 'block' : 'none';
+    // Violin has no frets, so the fretboard panel (and its target-string/
+    // correct/wrong legend) has nothing to show — hide it entirely rather
+    // than leaving an idle guitar diagram sitting under the staff.
+    el.fretboardPanel.style.display = state.mode === 'violin' ? 'none' : '';
 
     // The mic "Start listening" control is shared by every mode that needs
-    // live pitch matching: Play it, Read it, Tune, and Find when it's in the
-    // find-by-ear (gamified) sub-mode.
-    el.micStartField.style.display = (state.mode === 'mic' || state.mode === 'read' || state.mode === 'tune' || (state.mode === 'find' && state.findListenMode)) ? 'block' : 'none';
+    // live pitch matching: Play it, Read it, Violin, Tune, and Find when
+    // it's in the find-by-ear (gamified) sub-mode.
+    el.micStartField.style.display = (state.mode === 'mic' || state.mode === 'read' || state.mode === 'violin' || state.mode === 'tune' || (state.mode === 'find' && state.findListenMode)) ? 'block' : 'none';
 
     if (state.mode === 'tune') {
       enterTuneMode();
