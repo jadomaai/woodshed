@@ -1037,9 +1037,19 @@
     // the browser's default SVG size and clips anything taller than that —
     // which low notes needing several ledger lines below the staff hit.
     el.readStaffSvg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+    el.readStaffSvg.setAttribute('width', width);
+    el.readStaffSvg.setAttribute('height', height);
     var renderer = new VF.Renderer(el.readStaffSvg, VF.Renderer.Backends.SVG);
     renderer.resize(width, height);
     el.readStaffSvg.style.width = '100%';
+    // Relying on "height: auto" to derive its size from the viewBox's aspect
+    // ratio is exactly the kind of intrinsic-sizing behaviour some browsers
+    // (older/embedded WebKit in particular) don't apply consistently to a
+    // bare <svg> with no width/height attributes of its own — which shows up
+    // as the panel getting stuck at a small fallback height and clipping
+    // everything below the top staff line. Setting the ratio explicitly via
+    // the `aspect-ratio` property sidesteps that guesswork entirely.
+    el.readStaffSvg.style.aspectRatio = width + ' / ' + height;
     el.readStaffSvg.style.height = 'auto';
     var context = renderer.getContext();
 
@@ -1483,7 +1493,15 @@
       if (watermarkEl) { watermarkEl.classList.remove('wm-good', 'wm-bad'); watermarkEl.textContent = ''; }
       highlightTargetString(-1);
       el.instruction.textContent = 'Play the note shown';
-      renderReadNote(state.target.midi);
+      // Never let a drawing failure on some browser/device take the target
+      // (already picked above) or the mic-matching loop down with it — a
+      // blank/broken staff is recoverable, a mic that silently stops isn't.
+      try {
+        renderReadNote(state.target.midi);
+      } catch (err) {
+        console.error('renderReadNote failed:', err);
+        if (el.readStaffFrame) el.readStaffFrame.textContent = 'Could not draw the staff — the note is still live, so keep listening.';
+      }
       return;
     }
 
@@ -1577,7 +1595,15 @@
         el.meterWrap.style.display = 'block';
         el.micToggleBtn.textContent = 'Stop listening';
         el.micToggleBtn.classList.add('stop');
-        syncModeUI();
+        // syncModeUI() picks the first target and (in Read it mode) draws the
+        // staff — if that drawing step throws on some browser/device, it must
+        // never take the pitch-detection loop down with it, since a broken
+        // note picture is far less bad than a mic that silently stops working.
+        try {
+          syncModeUI();
+        } catch (err) {
+          console.error('syncModeUI failed while starting the mic:', err);
+        }
         pitchLoop();
       })
       .catch(function (err) {
