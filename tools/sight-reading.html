@@ -249,6 +249,21 @@
           </div>
         </div>
         <div class="field">
+          <label class="field-label">Note range</label>
+          <div class="segmented" id="rangeRestrictSwitch">
+            <button type="button" data-restrict="off" class="active">Full range</button>
+            <button type="button" data-restrict="on">Custom range</button>
+          </div>
+        </div>
+        <div class="field" id="lowNoteField" style="display:none;">
+          <label class="field-label" for="lowNoteSelect">Lowest note</label>
+          <select class="select-input" id="lowNoteSelect"></select>
+        </div>
+        <div class="field" id="highNoteField" style="display:none;">
+          <label class="field-label" for="highNoteSelect">Highest note</label>
+          <select class="select-input" id="highNoteSelect"></select>
+        </div>
+        <div class="field">
           <label class="field-label" for="keySelect">Key</label>
           <select class="select-input" id="keySelect"></select>
         </div>
@@ -321,6 +336,8 @@
           <br><br>
           <strong>Record &amp; grade</strong> counts you in, clicks through the piece while it records you, then checks each note afterwards: it looks for a pluck near where that note should fall and checks the pitch. It only judges pitch and rough timing, not tone or which string you used. The staff is written the same way standard guitar sheet music is — an octave higher than it actually sounds — and grading listens for the real sounding pitch, exactly like reading from a guitar chart.
           <br><br>
+          <strong>Note range</strong>: Full range spreads notes anywhere the ledger-line sliders allow. Custom range pins generation to a chosen lowest/highest note instead — handy for drilling one area, like the bottom of the staff and a couple of ledger lines under it. The ledger sliders still set the staff's minimum drawing room, so widen them too if a custom range needs more space than they currently give it.
+          <br><br>
           This is a first cut at correctness-checking &mdash; live, note-by-note feedback while you play (rather than a report afterwards) is a possible future addition.
         </div>
       </div>
@@ -368,6 +385,13 @@
       steps++;
     }
     return { letter: LETTER_CYCLE[i], octave: octave };
+  }
+
+  // Inverse of positionToLetterOctave — used by the note-range restriction
+  // (a natural note name + octave picked in the UI) to get back to the same
+  // staff-position numbering pickNextPosition works in.
+  function letterOctaveToPosition(letter, octave) {
+    return ANCHOR_POSITION + (octave - 4) * 7 + LETTER_CYCLE.indexOf(letter);
   }
 
   function freqFromMidi(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
@@ -502,6 +526,19 @@
     var pulseTicks = params.timeSig === '6/8' ? 6 : 4; // metronome click unit, in ticks
     var minPos = 0 - 2 * params.ledgerBelow;
     var maxPos = 8 + 2 * params.ledgerAbove;
+    // Restricting to a chosen lowest/highest note overrides the ledger-line
+    // sliders for which notes actually get picked — those sliders still set
+    // the staff's minimum drawing room below, via ledgerAbove/ledgerBelow on
+    // the returned piece.
+    if (params.rangeRestrict) {
+      minPos = params.lowNotePos;
+      maxPos = params.highNotePos;
+    }
+    // Whatever room the ledger sliders asked for, never draw a staff too
+    // short for the notes actually being generated — take whichever of the
+    // two (slider vs. restricted range) needs more room.
+    var effLedgerBelow = Math.max(params.ledgerBelow, Math.max(0, Math.ceil((0 - minPos) / 2)));
+    var effLedgerAbove = Math.max(params.ledgerAbove, Math.max(0, Math.ceil((maxPos - 8) / 2)));
 
     var bars = [];
     var gradable = []; // flat list of {tick (absolute, from piece start), freq, barIndex, segIndex}
@@ -538,7 +575,7 @@
     return {
       key: key, timeSig: params.timeSig, ts: ts, barTicks: barTicks, pulseTicks: pulseTicks,
       bars: bars, gradable: gradable, totalTicks: absoluteTick,
-      ledgerAbove: params.ledgerAbove, ledgerBelow: params.ledgerBelow
+      ledgerAbove: effLedgerAbove, ledgerBelow: effLedgerBelow
     };
   }
 
@@ -753,7 +790,8 @@
       localStorage.setItem(STORE_KEY, JSON.stringify({
         ledgerAbove: state.ledgerAbove, ledgerBelow: state.ledgerBelow, keyName: state.keyName,
         timeSig: state.timeSig, bars: state.bars, difficulty: state.difficulty,
-        bpm: state.bpm, countIn: state.countIn
+        bpm: state.bpm, countIn: state.countIn,
+        rangeRestrict: state.rangeRestrict, lowNotePos: state.lowNotePos, highNotePos: state.highNotePos
       }));
     } catch (e) { /* ignore */ }
   }
@@ -765,11 +803,20 @@
   var state = {
     ledgerAbove: 2, ledgerBelow: 2, keyName: 'C', timeSig: '4/4', bars: 8,
     difficulty: 'simple', bpm: 80, countIn: true,
+    // Note-range restriction: off by default (full range, driven by the
+    // ledger-line sliders as before). The low/high bounds are staff
+    // positions (see letterOctaveToPosition) and start out matching whatever
+    // the ledger sliders currently allow, so turning restriction on doesn't
+    // change anything until the note pickers are actually narrowed.
+    rangeRestrict: false, lowNotePos: 0 - 2 * 2, highNotePos: 8 + 2 * 2,
     piece: null, renderInfo: null,
     mode: null, // null | 'playalong' | 'record'
     audioCtx: null, schedulerTimer: null, rafId: null,
     lastGrade: null
   };
+
+  var NOTE_RANGE_MIN_POS = letterOctaveToPosition('C', 2);
+  var NOTE_RANGE_MAX_POS = letterOctaveToPosition('C', 7);
 
   var saved = loadSettings();
   if (saved) {
@@ -781,7 +828,11 @@
     if (['simple', 'moderate', 'busy'].indexOf(saved.difficulty) !== -1) state.difficulty = saved.difficulty;
     if (saved.bpm >= 40 && saved.bpm <= 168) state.bpm = saved.bpm;
     if (typeof saved.countIn === 'boolean') state.countIn = saved.countIn;
+    if (typeof saved.rangeRestrict === 'boolean') state.rangeRestrict = saved.rangeRestrict;
+    if (saved.lowNotePos >= NOTE_RANGE_MIN_POS && saved.lowNotePos <= NOTE_RANGE_MAX_POS) state.lowNotePos = saved.lowNotePos;
+    if (saved.highNotePos >= NOTE_RANGE_MIN_POS && saved.highNotePos <= NOTE_RANGE_MAX_POS) state.highNotePos = saved.highNotePos;
   }
+  if (state.lowNotePos > state.highNotePos) { var tmpPos = state.lowNotePos; state.lowNotePos = state.highNotePos; state.highNotePos = tmpPos; }
 
   function currentKey() {
     for (var i = 0; i < KEYS.length; i++) if (KEYS[i].name === state.keyName) return KEYS[i];
@@ -800,6 +851,11 @@
     ledgerAboveVal: document.getElementById('ledgerAboveVal'),
     ledgerBelow: document.getElementById('ledgerBelow'),
     ledgerBelowVal: document.getElementById('ledgerBelowVal'),
+    rangeRestrictSwitch: document.getElementById('rangeRestrictSwitch'),
+    lowNoteField: document.getElementById('lowNoteField'),
+    lowNoteSelect: document.getElementById('lowNoteSelect'),
+    highNoteField: document.getElementById('highNoteField'),
+    highNoteSelect: document.getElementById('highNoteSelect'),
     keySelect: document.getElementById('keySelect'),
     timeSigSelect: document.getElementById('timeSigSelect'),
     barsRange: document.getElementById('barsRange'),
@@ -829,6 +885,20 @@
     el.keySelect.value = state.keyName;
   }
 
+  // Both note-range dropdowns share the same natural-note (no accidentals)
+  // span — accidentals are a key-signature thing, never a staff-position
+  // thing, same reasoning as LETTER_CYCLE/positionToLetterOctave above.
+  function populateNoteRangeSelect(selectEl) {
+    selectEl.innerHTML = '';
+    for (var p = NOTE_RANGE_MIN_POS; p <= NOTE_RANGE_MAX_POS; p++) {
+      var lo = positionToLetterOctave(p);
+      var opt = document.createElement('option');
+      opt.value = String(p);
+      opt.textContent = lo.letter + lo.octave;
+      selectEl.appendChild(opt);
+    }
+  }
+
   /* ==================================================================
      Generate button
      ================================================================== */
@@ -837,6 +907,7 @@
     stopAll();
     var params = {
       ledgerAbove: state.ledgerAbove, ledgerBelow: state.ledgerBelow,
+      rangeRestrict: state.rangeRestrict, lowNotePos: state.lowNotePos, highNotePos: state.highNotePos,
       key: currentKey(), timeSig: state.timeSig, bars: state.bars, difficulty: state.difficulty
     };
     state.piece = generatePiece(params);
@@ -1290,6 +1361,35 @@
     el.ledgerBelowVal.textContent = state.ledgerBelow;
     saveSettings();
   });
+  el.rangeRestrictSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-restrict]');
+    if (!btn) return;
+    state.rangeRestrict = btn.getAttribute('data-restrict') === 'on';
+    Array.prototype.forEach.call(el.rangeRestrictSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    el.lowNoteField.style.display = state.rangeRestrict ? 'block' : 'none';
+    el.highNoteField.style.display = state.rangeRestrict ? 'block' : 'none';
+    saveSettings();
+  });
+  el.lowNoteSelect.addEventListener('change', function () {
+    state.lowNotePos = parseInt(el.lowNoteSelect.value, 10);
+    // Keep low <= high — bump the other bound up rather than allow an
+    // inverted (empty) range to silently generate nothing.
+    if (state.lowNotePos > state.highNotePos) {
+      state.highNotePos = state.lowNotePos;
+      el.highNoteSelect.value = String(state.highNotePos);
+    }
+    saveSettings();
+  });
+  el.highNoteSelect.addEventListener('change', function () {
+    state.highNotePos = parseInt(el.highNoteSelect.value, 10);
+    if (state.highNotePos < state.lowNotePos) {
+      state.lowNotePos = state.highNotePos;
+      el.lowNoteSelect.value = String(state.lowNotePos);
+    }
+    saveSettings();
+  });
   el.keySelect.addEventListener('change', function () {
     state.keyName = el.keySelect.value;
     saveSettings();
@@ -1338,6 +1438,15 @@
     populateKeySelect();
     el.ledgerAbove.value = state.ledgerAbove; el.ledgerAboveVal.textContent = state.ledgerAbove;
     el.ledgerBelow.value = state.ledgerBelow; el.ledgerBelowVal.textContent = state.ledgerBelow;
+    populateNoteRangeSelect(el.lowNoteSelect);
+    populateNoteRangeSelect(el.highNoteSelect);
+    el.lowNoteSelect.value = String(state.lowNotePos);
+    el.highNoteSelect.value = String(state.highNotePos);
+    Array.prototype.forEach.call(el.rangeRestrictSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', (b.getAttribute('data-restrict') === 'on') === state.rangeRestrict);
+    });
+    el.lowNoteField.style.display = state.rangeRestrict ? 'block' : 'none';
+    el.highNoteField.style.display = state.rangeRestrict ? 'block' : 'none';
     el.timeSigSelect.value = state.timeSig;
     el.barsRange.value = state.bars; el.barsVal.textContent = state.bars;
     el.tempoRange.value = state.bpm; el.tempoVal.textContent = state.bpm;
