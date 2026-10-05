@@ -154,6 +154,7 @@
   }
   .segmented button.active { background: var(--accent); color: var(--on-accent); }
 
+  .field-hint { font-size: 12px; color: var(--text-faint); line-height: 1.5; margin-top: 6px; }
   select.select-input {
     width: 100%; background: var(--wood-lo); color: var(--text);
     border: 1px solid var(--panel-border-strong); border-radius: 8px; padding: 9px 10px;
@@ -248,7 +249,7 @@
             <input type="range" id="ledgerBelow" min="0" max="4" value="2" step="1">
           </div>
         </div>
-        <div class="field">
+        <div class="field" id="rangeField">
           <label class="field-label">Note range</label>
           <div class="segmented" id="rangeRestrictSwitch">
             <button type="button" data-restrict="off" class="active">Full range</button>
@@ -262,6 +263,18 @@
         <div class="field" id="highNoteField" style="display:none;">
           <label class="field-label" for="highNoteSelect">Highest note</label>
           <select class="select-input" id="highNoteSelect"></select>
+        </div>
+        <div class="field">
+          <label class="field-label">Hand position</label>
+          <div class="segmented" id="posLockSwitch">
+            <button type="button" data-poslock="off" class="active">Free</button>
+            <button type="button" data-poslock="on">Locked</button>
+          </div>
+        </div>
+        <div class="field" id="posField" style="display:none;">
+          <label class="field-label" for="posSelect">Position</label>
+          <select class="select-input" id="posSelect"></select>
+          <div class="field-hint" id="posHint"></div>
         </div>
         <div class="field">
           <label class="field-label" for="keySelect">Key</label>
@@ -337,6 +350,8 @@
           <strong>Record &amp; grade</strong> counts you in, clicks through the piece while it records you, then checks each note afterwards: it looks for a pluck near where that note should fall and checks the pitch. It only judges pitch and rough timing, not tone or which string you used. The staff is written the same way standard guitar sheet music is — an octave higher than it actually sounds — and grading listens for the real sounding pitch, exactly like reading from a guitar chart.
           <br><br>
           <strong>Note range</strong>: Full range spreads notes anywhere the ledger-line sliders allow. Custom range pins generation to a chosen lowest/highest note instead — handy for drilling one area, like the bottom of the staff and a couple of ledger lines under it. The ledger sliders still set the staff's minimum drawing room, so widen them too if a custom range needs more space than they currently give it.
+          <br><br>
+          <strong>Hand position</strong>: Locked keeps every note of the piece inside one four-fret window of the neck &mdash; position V means your first finger sits on fret 5 and your four fingers cover frets 5&ndash;8 (position I also allows the open strings). Inside a window each pitch has exactly one place to play it, so reading a note forces a string as well as a fret: the C in the third space of the staff (middle C on a piano) is on the B string in position I, the G string in position V, and the D string in position IX. &ldquo;Random&rdquo; picks a new position each time you press Generate. A locked position overrides the note-range setting, since the window decides which notes can appear.
           <br><br>
           This is a first cut at correctness-checking &mdash; live, note-by-note feedback while you play (rather than a report afterwards) is a possible future addition.
         </div>
@@ -485,11 +500,57 @@
     return segments;
   }
 
+  /* ---------------- Hand-position lock ---------------- */
+
+  // Open-string pitches as MIDI numbers of the SOUNDING note, low string to
+  // high: E2 A2 D3 G3 B3 E4. (The staff is written an octave higher; see
+  // GUITAR_NOTATION_OCTAVE_SHIFT.)
+  var OPEN_STRING_MIDI = [40, 45, 50, 55, 59, 64];
+  var POSITION_COUNT = 12;
+  var POSITION_SPAN = 4;       // frets covered by the four fingers
+  var ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+  // Frets reachable from a position: the first finger on fret n covers
+  // n .. n+3. Only position I also includes the open strings.
+  function positionFrets(n) {
+    var frets = [];
+    if (n === 1) frets.push(0);
+    for (var f = n; f < n + POSITION_SPAN; f++) frets.push(f);
+    return frets;
+  }
+
+  function positionLabel(n) {
+    return 'Position ' + ROMAN[n] + ' \u00b7 frets ' + n + '\u2013' + (n + POSITION_SPAN - 1) + (n === 1 ? ' + open strings' : '');
+  }
+
+  // Diatonic staff positions (in the given key) that can be played inside
+  // hand position n. Returned in ascending order.
+  function playablePositionsFor(n, accMap) {
+    var sounding = {};
+    positionFrets(n).forEach(function (f) {
+      OPEN_STRING_MIDI.forEach(function (open) { sounding[open + f] = true; });
+    });
+    var out = [];
+    for (var p = letterOctaveToPosition('C', 2); p <= letterOctaveToPosition('C', 7); p++) {
+      var lo = positionToLetterOctave(p);
+      var acc = accMap[lo.letter] || '';
+      var semitone = NATURAL_SEMITONE[lo.letter] + (acc === '#' ? 1 : acc === 'b' ? -1 : 0);
+      var writtenMidi = (lo.octave + 1) * 12 + semitone;
+      if (sounding[writtenMidi - GUITAR_NOTATION_OCTAVE_SHIFT]) out.push(p);
+    }
+    return out;
+  }
+
   /* ---------------- Pitch selection (stepwise-weighted, diatonic) ---------------- */
 
-  function pickNextPosition(prevPos, minPos, maxPos) {
+  // allowed (optional): explicit list of staff positions to choose from,
+  // used by the hand-position lock instead of the contiguous minPos..maxPos.
+  function pickNextPosition(prevPos, minPos, maxPos, allowed) {
     var candidates = [];
-    for (var p = minPos; p <= maxPos; p++) {
+    var pool = allowed;
+    if (!pool) { pool = []; for (var q = minPos; q <= maxPos; q++) pool.push(q); }
+    for (var pi = 0; pi < pool.length; pi++) {
+      var p = pool[pi];
       var dist = prevPos === null ? 0 : Math.abs(p - prevPos);
       if (dist > 7) continue;
       var weight;
@@ -537,6 +598,15 @@
     // Whatever room the ledger sliders asked for, never draw a staff too
     // short for the notes actually being generated — take whichever of the
     // two (slider vs. restricted range) needs more room.
+    // Hand-position lock: only notes playable inside the chosen four-fret
+    // window can appear, so this wins over both the sliders and the
+    // custom range.
+    var allowed = null;
+    if (params.positionFret) {
+      allowed = playablePositionsFor(params.positionFret, accMap);
+      if (allowed.length === 0) allowed = null;
+      else { minPos = allowed[0]; maxPos = allowed[allowed.length - 1]; }
+    }
     var effLedgerBelow = Math.max(params.ledgerBelow, Math.max(0, Math.ceil((0 - minPos) / 2)));
     var effLedgerAbove = Math.max(params.ledgerAbove, Math.max(0, Math.ceil((maxPos - 8) / 2)));
 
@@ -552,7 +622,7 @@
         var seg = segs[s];
         var out = { ticks: seg.ticks, isRest: seg.isRest, startTick: absoluteTick };
         if (!seg.isRest) {
-          var pos = pickNextPosition(prevPos, minPos, maxPos);
+          var pos = pickNextPosition(prevPos, minPos, maxPos, allowed);
           prevPos = pos;
           var lo = positionToLetterOctave(pos);
           var accidental = accMap[lo.letter] || '';
@@ -575,7 +645,8 @@
     return {
       key: key, timeSig: params.timeSig, ts: ts, barTicks: barTicks, pulseTicks: pulseTicks,
       bars: bars, gradable: gradable, totalTicks: absoluteTick,
-      ledgerAbove: effLedgerAbove, ledgerBelow: effLedgerBelow
+      ledgerAbove: effLedgerAbove, ledgerBelow: effLedgerBelow,
+      positionFret: allowed ? params.positionFret : null
     };
   }
 
@@ -791,7 +862,8 @@
         ledgerAbove: state.ledgerAbove, ledgerBelow: state.ledgerBelow, keyName: state.keyName,
         timeSig: state.timeSig, bars: state.bars, difficulty: state.difficulty,
         bpm: state.bpm, countIn: state.countIn,
-        rangeRestrict: state.rangeRestrict, lowNotePos: state.lowNotePos, highNotePos: state.highNotePos
+        rangeRestrict: state.rangeRestrict, lowNotePos: state.lowNotePos, highNotePos: state.highNotePos,
+        posLock: state.posLock, posFret: state.posFret
       }));
     } catch (e) { /* ignore */ }
   }
@@ -809,6 +881,8 @@
     // the ledger sliders currently allow, so turning restriction on doesn't
     // change anything until the note pickers are actually narrowed.
     rangeRestrict: false, lowNotePos: 0 - 2 * 2, highNotePos: 8 + 2 * 2,
+    // Hand-position lock: off by default. posFret is 1..12 or 'random'.
+    posLock: false, posFret: 'random',
     piece: null, renderInfo: null,
     mode: null, // null | 'playalong' | 'record'
     audioCtx: null, schedulerTimer: null, rafId: null,
@@ -830,6 +904,8 @@
     if (typeof saved.countIn === 'boolean') state.countIn = saved.countIn;
     if (typeof saved.rangeRestrict === 'boolean') state.rangeRestrict = saved.rangeRestrict;
     if (saved.lowNotePos >= NOTE_RANGE_MIN_POS && saved.lowNotePos <= NOTE_RANGE_MAX_POS) state.lowNotePos = saved.lowNotePos;
+    if (typeof saved.posLock === 'boolean') state.posLock = saved.posLock;
+    if (saved.posFret === 'random' || (saved.posFret >= 1 && saved.posFret <= POSITION_COUNT)) state.posFret = saved.posFret;
     if (saved.highNotePos >= NOTE_RANGE_MIN_POS && saved.highNotePos <= NOTE_RANGE_MAX_POS) state.highNotePos = saved.highNotePos;
   }
   if (state.lowNotePos > state.highNotePos) { var tmpPos = state.lowNotePos; state.lowNotePos = state.highNotePos; state.highNotePos = tmpPos; }
@@ -851,6 +927,11 @@
     ledgerAboveVal: document.getElementById('ledgerAboveVal'),
     ledgerBelow: document.getElementById('ledgerBelow'),
     ledgerBelowVal: document.getElementById('ledgerBelowVal'),
+    rangeField: document.getElementById('rangeField'),
+    posLockSwitch: document.getElementById('posLockSwitch'),
+    posField: document.getElementById('posField'),
+    posSelect: document.getElementById('posSelect'),
+    posHint: document.getElementById('posHint'),
     rangeRestrictSwitch: document.getElementById('rangeRestrictSwitch'),
     lowNoteField: document.getElementById('lowNoteField'),
     lowNoteSelect: document.getElementById('lowNoteSelect'),
@@ -903,12 +984,49 @@
      Generate button
      ================================================================== */
 
+  function populatePosSelect() {
+    el.posSelect.innerHTML = '';
+    var rnd = document.createElement('option');
+    rnd.value = 'random';
+    rnd.textContent = 'Random (new each time)';
+    el.posSelect.appendChild(rnd);
+    for (var n = 1; n <= POSITION_COUNT; n++) {
+      var opt = document.createElement('option');
+      opt.value = String(n);
+      opt.textContent = positionLabel(n);
+      el.posSelect.appendChild(opt);
+    }
+    el.posSelect.value = String(state.posFret);
+  }
+
+  // Shows/hides the position picker and greys out the note-range controls
+  // (a locked position decides the notes, so the range has no effect).
+  function applyPosLockUI() {
+    el.posField.style.display = state.posLock ? 'block' : 'none';
+    el.rangeField.style.opacity = state.posLock ? '0.4' : '';
+    el.rangeField.style.pointerEvents = state.posLock ? 'none' : '';
+    el.lowNoteField.style.opacity = el.highNoteField.style.opacity = state.posLock ? '0.4' : '';
+    el.lowNoteField.style.pointerEvents = el.highNoteField.style.pointerEvents = state.posLock ? 'none' : '';
+    el.posHint.textContent = state.posFret === 'random'
+      ? 'A different four-fret window is chosen every time you press Generate.'
+      : 'First finger on fret ' + state.posFret + '; fingers cover frets ' + state.posFret + '\u2013' + (state.posFret + POSITION_SPAN - 1) + (state.posFret === 1 ? ', plus the open strings.' : '.');
+  }
+
+  function pieceSubText() {
+    var t = currentKey().label + ' \u00b7 ' + state.timeSig + ' \u00b7 ' + state.bpm + ' bpm';
+    if (state.piece && state.piece.positionFret) t += ' \u00b7 ' + positionLabel(state.piece.positionFret);
+    return t;
+  }
+
   function doGenerate() {
     stopAll();
     var params = {
       ledgerAbove: state.ledgerAbove, ledgerBelow: state.ledgerBelow,
       rangeRestrict: state.rangeRestrict, lowNotePos: state.lowNotePos, highNotePos: state.highNotePos,
-      key: currentKey(), timeSig: state.timeSig, bars: state.bars, difficulty: state.difficulty
+      key: currentKey(), timeSig: state.timeSig, bars: state.bars, difficulty: state.difficulty,
+      positionFret: state.posLock
+        ? (state.posFret === 'random' ? 1 + Math.floor(Math.random() * POSITION_COUNT) : state.posFret)
+        : null
     };
     state.piece = generatePiece(params);
     state.renderInfo = renderPiece(state.piece);
@@ -917,7 +1035,7 @@
     el.instruction.textContent = 'Ready';
     el.bigReadout.textContent = state.bars + ' bar' + (state.bars === 1 ? '' : 's');
     el.bigReadout.className = 'readout-note';
-    el.subReadout.textContent = currentKey().label + ' · ' + state.timeSig + ' · ' + state.bpm + ' bpm';
+    el.subReadout.textContent = pieceSubText();
     el.playAlongBtn.disabled = false;
     el.recordBtn.disabled = false;
     renderBeatDots();
@@ -1330,7 +1448,7 @@
       if (state.piece) {
         el.bigReadout.textContent = state.bars + ' bar' + (state.bars === 1 ? '' : 's');
         el.bigReadout.className = 'readout-note';
-        el.subReadout.textContent = currentKey().label + ' · ' + state.timeSig + ' · ' + state.bpm + ' bpm';
+        el.subReadout.textContent = pieceSubText();
       }
     }
   }
@@ -1390,6 +1508,21 @@
     }
     saveSettings();
   });
+  el.posLockSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-poslock]');
+    if (!btn) return;
+    state.posLock = btn.getAttribute('data-poslock') === 'on';
+    Array.prototype.forEach.call(el.posLockSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    applyPosLockUI();
+    saveSettings();
+  });
+  el.posSelect.addEventListener('change', function () {
+    state.posFret = el.posSelect.value === 'random' ? 'random' : parseInt(el.posSelect.value, 10);
+    applyPosLockUI();
+    saveSettings();
+  });
   el.keySelect.addEventListener('change', function () {
     state.keyName = el.keySelect.value;
     saveSettings();
@@ -1417,7 +1550,7 @@
     el.tempoVal.textContent = state.bpm;
     saveSettings();
     if (state.piece && state.mode === null) {
-      el.subReadout.textContent = currentKey().label + ' · ' + state.timeSig + ' · ' + state.bpm + ' bpm';
+      el.subReadout.textContent = pieceSubText();
     }
   });
   el.countInSwitch.addEventListener('click', function (ev) {
@@ -1447,6 +1580,11 @@
     });
     el.lowNoteField.style.display = state.rangeRestrict ? 'block' : 'none';
     el.highNoteField.style.display = state.rangeRestrict ? 'block' : 'none';
+    populatePosSelect();
+    Array.prototype.forEach.call(el.posLockSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', (b.getAttribute('data-poslock') === 'on') === state.posLock);
+    });
+    applyPosLockUI();
     el.timeSigSelect.value = state.timeSig;
     el.barsRange.value = state.bars; el.barsVal.textContent = state.bars;
     el.tempoRange.value = state.bpm; el.tempoVal.textContent = state.bpm;
