@@ -859,6 +859,11 @@
             <button type="button" data-reveal="instant" class="active">Show me</button>
             <button type="button" data-reveal="listen">Find by ear</button>
           </div>
+          <label class="field-label" style="margin-top:14px;">Colour dots by</label>
+          <div class="segmented" id="findColorSwitch">
+            <button type="button" data-colorby="octave" class="active">Octave</button>
+            <button type="button" data-colorby="note">Note</button>
+          </div>
           <div class="field" id="findCycleField" style="display:none; margin-top:14px;">
             <label class="field-label">Notes</label>
             <div class="segmented" id="findCycleSwitch">
@@ -977,6 +982,35 @@
     'A#': { hex: '#8c4da3', text: '#eafaf5' },
     'B':  { hex: '#c868ab', text: '#052321' }
   };
+
+  // Find mode can colour its dots by octave instead of by note name, so the
+  // same note in different octaves (e.g. C3 / C4 / C5) is easy to tell apart.
+  // Low to high: amber, orange, rose, sky, lime, violet. Each clears 3:1
+  // against the fretboard surface (#123a41) and 4.5:1 for the dark label
+  // text drawn on top; every dot also carries its full note+octave label.
+  var OCTAVE_COLORS = {
+    1: { hex: '#f2c14e', text: '#052321' },
+    2: { hex: '#ee8a3c', text: '#052321' },
+    3: { hex: '#ec5f7d', text: '#052321' },
+    4: { hex: '#4cc3f0', text: '#052321' },
+    5: { hex: '#a6dc52', text: '#052321' },
+    6: { hex: '#b895f2', text: '#052321' },
+    7: { hex: '#f2f2f2', text: '#052321' }
+  };
+
+  function findColorsFor(noteName, octave) {
+    if (state.findColorBy === 'octave') return OCTAVE_COLORS[octave] || OCTAVE_COLORS[7];
+    return NOTE_COLORS[noteName];
+  }
+
+  // Note names for the readout/instruction line: coloured per note in
+  // "by note" mode, neutral in "by octave" mode (where colour means octave,
+  // so a coloured letter would be misleading).
+  function findNoteHtml(notes) {
+    return notes.map(function (n) {
+      return state.findColorBy === 'octave' ? n : '<span style="color:' + NOTE_COLORS[n].hex + ';">' + n + '</span>';
+    }).join('<span style="color:var(--text-faint);"> \u00b7 </span>');
+  }
 
   function freqFromMidi(midi) {
     return 440 * Math.pow(2, (midi - 69) / 12);
@@ -1167,6 +1201,7 @@
         findNotes: Object.keys(state.findNotes),
         noteFilterMode: state.noteFilterMode,
         findListenMode: state.findListenMode,
+        findColorBy: state.findColorBy,
         findCycleEnabled: state.findCycleEnabled,
         mode: state.mode
       }));
@@ -1184,6 +1219,7 @@
     findNotes: {}, // note name -> true, e.g. { C: true, 'D#': true }
     noteFilterMode: 'chromatic', // 'chromatic' | 'naturals'
     mode: 'mic', // 'mic' | 'tap' | 'read' | 'violin' | 'tune' | 'find'
+    findColorBy: 'octave', // 'octave' | 'note' — what Find-mode dot colour encodes
     findListenMode: false, // false = reveal instantly, true = find-by-ear gamified mode
     findFound: {}, // "stringIndex-fret" -> true, positions found so far in find-by-ear mode
     findStringPos: 0, // current string under test in find-by-ear mode, 0 = Low E (6th) .. 5 = High e (1st)
@@ -1219,6 +1255,7 @@
       });
     }
     if (saved.noteFilterMode === 'chromatic' || saved.noteFilterMode === 'naturals') state.noteFilterMode = saved.noteFilterMode;
+    if (saved.findColorBy === 'octave' || saved.findColorBy === 'note') state.findColorBy = saved.findColorBy;
     if (typeof saved.findListenMode === 'boolean') state.findListenMode = saved.findListenMode;
     if (typeof saved.findCycleEnabled === 'boolean') state.findCycleEnabled = saved.findCycleEnabled;
     if (saved.mode === 'mic' || saved.mode === 'tap' || saved.mode === 'read' || saved.mode === 'violin' || saved.mode === 'tune' || saved.mode === 'find') state.mode = saved.mode;
@@ -1264,6 +1301,7 @@
     findRevealSwitch: document.getElementById('findRevealSwitch'),
     findCycleField: document.getElementById('findCycleField'),
     findCycleSwitch: document.getElementById('findCycleSwitch'),
+    findColorSwitch: document.getElementById('findColorSwitch'),
     findProgressRow: document.getElementById('findProgressRow'),
     findProgress: document.getElementById('findProgress'),
     findResetBtn: document.getElementById('findResetBtn'),
@@ -1360,8 +1398,9 @@
       }));
     }
 
-    // Fret number labels
-    for (var fn = 0; fn <= nFrets; fn++) {
+    // Fret number labels — hidden along with the inlays when "Fret markers"
+    // is off, so the board gives no positional hints at all.
+    for (var fn = 0; state.showFretMarkers && fn <= nFrets; fn++) {
       if (fn !== 0 && fn % 1 !== 0) continue;
       var lx = FB.left + fretW * (fn === 0 ? 0 : fn - 0.5);
       var txt = svgEl('text', {
@@ -1907,12 +1946,12 @@
     return NOTE_NAMES_SHARP.filter(function (n) { return state.findNotes[n]; });
   }
 
-  function drawFindMarker(stringIndex, fret, label, noteName) {
+  function drawFindMarker(stringIndex, fret, label, noteName, octave) {
     var cell = fretCells.find(function (c) { return c.stringIndex === stringIndex && c.fret === fret; });
     if (!cell) return;
     var key = stringIndex + '-' + fret + '-find';
     if (fretPositionMarkers[key]) return;
-    var colors = NOTE_COLORS[noteName];
+    var colors = findColorsFor(noteName, octave);
     var g = svgEl('g', {});
     var dot = svgEl('circle', {
       cx: cell.cx, cy: cell.cy, r: 16.5,
@@ -1941,7 +1980,7 @@
         var midi = midiForPosition(t, s, f);
         var nm = nameFromMidi(midi);
         if (state.findNotes[nm.name]) {
-          byString[s].push({ stringIndex: s, fret: f, midi: midi, label: nm.label, note: nm.name, key: s + '-' + f });
+          byString[s].push({ stringIndex: s, fret: f, midi: midi, label: nm.label, note: nm.name, octave: nm.octave, key: s + '-' + f });
         }
       }
     }
@@ -1988,12 +2027,12 @@
 
     if (!listenMode) {
       byString.forEach(function (occs) {
-        occs.forEach(function (o) { drawFindMarker(o.stringIndex, o.fret, o.label, o.note); });
+        occs.forEach(function (o) { drawFindMarker(o.stringIndex, o.fret, o.label, o.note, o.octave); });
       });
     } else {
       byString.forEach(function (occs) {
         occs.forEach(function (o) {
-          if (state.findFound[o.key]) drawFindMarker(o.stringIndex, o.fret, o.label, o.note);
+          if (state.findFound[o.key]) drawFindMarker(o.stringIndex, o.fret, o.label, o.note, o.octave);
         });
       });
     }
@@ -2037,7 +2076,7 @@
           var noteSpan = document.createElement('span');
           noteSpan.className = 'note';
           if (isFound) {
-            noteSpan.style.color = NOTE_COLORS[o.note].hex;
+            noteSpan.style.color = findColorsFor(o.note, o.octave).hex;
             noteSpan.textContent = o.label;
           }
           occ.appendChild(fretSpan);
@@ -2114,9 +2153,7 @@
       watermarkEl.classList.remove('wm-good', 'wm-bad');
       watermarkEl.textContent = notes.join(' / ');
     }
-    var noteHtml = notes.map(function (n) {
-      return '<span style="color:' + NOTE_COLORS[n].hex + ';">' + n + '</span>';
-    }).join('<span style="color:var(--text-faint);"> · </span>');
+    var noteHtml = findNoteHtml(notes);
     el.instruction.innerHTML = 'Find ' + noteHtml + ' on the <b>' + t.labels[tuningIdx] + '</b> string (' + findOrdinal(tuningIdx) + ')';
   }
 
@@ -2261,9 +2298,7 @@
     el.targetSub.textContent = '';
     var notes = selectedFindNotes();
     if (notes.length > 0) {
-      el.targetNote.innerHTML = notes.map(function (n) {
-        return '<span style="color:' + NOTE_COLORS[n].hex + ';">' + n + '</span>';
-      }).join('<span style="color:var(--text-faint);"> · </span>');
+      el.targetNote.innerHTML = findNoteHtml(notes);
     } else {
       el.targetNote.textContent = '—';
     }
@@ -2323,9 +2358,23 @@
       if (notes.length === 0) {
         el.legendRow.innerHTML = '<span style="color:var(--text-faint);">pick a note below to mark it on the fretboard</span>';
       } else {
-        el.legendRow.innerHTML = notes.map(function (n) {
-          return '<span class="find-legend-swatch"><span class="dot" style="background:' + NOTE_COLORS[n].hex + ';"></span>' + n + '</span>';
-        }).join('');
+        if (state.findColorBy === 'octave') {
+          // One swatch per octave that actually has a marker for the
+          // selected note(s) in the current tuning / fret range.
+          var seen = {};
+          allFindOccurrences().forEach(function (occs) {
+            occs.forEach(function (o) { seen[o.octave] = true; });
+          });
+          var octs = Object.keys(seen).map(Number).sort(function (a, b) { return a - b; });
+          el.legendRow.innerHTML = octs.map(function (oct) {
+            var c = OCTAVE_COLORS[oct] || OCTAVE_COLORS[7];
+            return '<span class="find-legend-swatch"><span class="dot" style="background:' + c.hex + ';"></span>Octave ' + oct + '</span>';
+          }).join('');
+        } else {
+          el.legendRow.innerHTML = notes.map(function (n) {
+            return '<span class="find-legend-swatch"><span class="dot" style="background:' + NOTE_COLORS[n].hex + ';"></span>' + n + '</span>';
+          }).join('');
+        }
       }
     } else {
       el.legendRow.innerHTML =
@@ -2346,6 +2395,9 @@
     });
     Array.prototype.forEach.call(el.findCycleSwitch.querySelectorAll('button'), function (b) {
       b.classList.toggle('active', (b.getAttribute('data-cycle') === 'on') === state.findCycleEnabled);
+    });
+    Array.prototype.forEach.call(el.findColorSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-colorby') === state.findColorBy);
     });
     el.findCycleField.style.display = (state.mode === 'find' && state.findListenMode) ? 'block' : 'none';
     updateLegend();
@@ -2506,6 +2558,19 @@
     resetFindProgress();
     saveSettings();
     syncModeUI();
+  });
+
+  el.findColorSwitch.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('button[data-colorby]');
+    if (!btn) return;
+    var by = btn.getAttribute('data-colorby');
+    if (by === state.findColorBy) return;
+    state.findColorBy = by;
+    Array.prototype.forEach.call(el.findColorSwitch.querySelectorAll('button'), function (b) {
+      b.classList.toggle('active', b === btn);
+    });
+    saveSettings();
+    enterFindMode();
   });
 
   el.findResetBtn.addEventListener('click', function () {
